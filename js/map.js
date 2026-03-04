@@ -6,7 +6,10 @@ const MapManager = {
     init() {
         // Initialize the map, centered on Switzerland
         this.map = L.map('map', {
-            zoomControl: false // We reposition it in CSS
+            zoomControl: false, // We reposition it in CSS
+            scrollWheelZoom: false, // Disable default zoom
+            smoothWheelZoom: true,  // Enable smooth zoom plugin
+            smoothSensitivity: 5,   // Higher is faster
         }).setView([46.8182, 8.2275], 8);
 
         // Add CartoDB Positron base layer for the clean, light SBB aesthetic
@@ -15,14 +18,7 @@ const MapManager = {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
         }).addTo(this.map);
 
-        // Optional: We can still overlay OpenRailwayMap faintly underneath our routes if desired, 
-        // but for a clean SBB look, just drawing our routes on Positron is often better.
-        // Let's add it but with some opacity if possible (Leaflet tile opacity)
-        L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            opacity: 0.3, // Make it subtle so our red lines stand out
-            attribution: 'Map style: &copy; <a href="https://www.OpenRailwayMap.org">OpenRailwayMap</a>'
-        }).addTo(this.map);
+        // Removed OpenRailwayMap overlay to leave a clean CartoDB Positron base.
 
         // Reposition zoom control
         L.control.zoom({
