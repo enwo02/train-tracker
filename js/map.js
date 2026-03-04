@@ -12,10 +12,17 @@ const MapManager = {
             smoothSensitivity: 5,   // Higher is faster
         }).setView([46.8182, 8.2275], 8);
 
-        // Add CartoDB Positron base layer for the clean, light SBB aesthetic
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        // 1. Add CartoDB Positron 'no labels' base layer
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
             maxZoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        }).addTo(this.map);
+
+        // 2. Add CartoDB Positron labels. This restores the clean SBB-like font.
+        // Note: This layer will unfortunately bring back region names, but it resolves the ugly font and white flashing.
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+            maxZoom: 20,
+            attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>'
         }).addTo(this.map);
 
         // Removed OpenRailwayMap overlay to leave a clean CartoDB Positron base.

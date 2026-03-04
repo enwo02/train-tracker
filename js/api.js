@@ -3,24 +3,36 @@ const API = {
     async searchStation(query) {
         if (!query || query.length < 3) return [];
 
-        // Focus search on railway stations
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&class=railway&type=station&limit=5`;
+        // Focus search on railway stations and explicitly enforce English as the primary language
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&class=railway&type=station&limit=5&accept-language=en,local`;
 
         try {
             const response = await fetch(url, {
                 headers: {
-                    'Accept-Language': 'en, de, fr, it' // Common Swiss/European languages
+                    'Accept-Language': 'en' // Reinforce English
                 }
             });
             if (!response.ok) throw new Error("Nominatim API error");
             const data = await response.json();
 
-            return data.map(item => ({
-                name: item.display_name.split(',')[0], // Get mostly the station name
-                fullName: item.display_name,
-                lat: parseFloat(item.lat),
-                lon: parseFloat(item.lon)
-            }));
+            const results = [];
+            const seenNames = new Set();
+
+            for (const item of data) {
+                const name = item.display_name.split(',')[0].trim();
+                // Prevent duplicate entries like multiple "Basel SBB" nodes
+                if (!seenNames.has(name)) {
+                    seenNames.add(name);
+                    results.push({
+                        name: name,
+                        fullName: item.display_name,
+                        lat: parseFloat(item.lat),
+                        lon: parseFloat(item.lon)
+                    });
+                }
+            }
+
+            return results;
         } catch (error) {
             console.error("Error searching station:", error);
             return [];
@@ -47,18 +59,40 @@ const API = {
             out skel qt;
         `;
 
-        try {
-            const response = await fetch('https://overpass-api.de/api/interpreter', {
-                method: 'POST',
-                body: query
-            });
-            if (!response.ok) throw new Error("Overpass API error");
-            const data = await response.json();
+        const maxRetries = 3;
+        let attempt = 0;
 
-            return this.parseOverpassRelationsToGeoJSON(data, startStation, endStation);
-        } catch (error) {
-            console.error("Error fetching route:", error);
-            throw error;
+        while (attempt <= maxRetries) {
+            try {
+                const response = await fetch('https://overpass-api.de/api/interpreter', {
+                    method: 'POST',
+                    body: query
+                });
+
+                if (!response.ok) {
+                    if ((response.status === 429 || response.status === 504 || response.status === 503) && attempt < maxRetries) {
+                        attempt++;
+                        const delay = 2000 * Math.pow(2, attempt - 1); // 2s, 4s, 8s
+                        console.warn(`Overpass API busy (status ${response.status}). Retrying in ${delay}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    throw new Error(`Overpass API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return this.parseOverpassRelationsToGeoJSON(data, startStation, endStation);
+            } catch (error) {
+                if (attempt < maxRetries) {
+                    attempt++;
+                    const delay = 2000 * Math.pow(2, attempt - 1);
+                    console.warn(`Overpass API fetch error: ${error.message}. Retrying in ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+                console.error("Error fetching route:", error);
+                throw error;
+            }
         }
     },
 

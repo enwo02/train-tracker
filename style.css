@@ -62,6 +62,7 @@ body {
     background: var(--bg-page);
 }
 
+
 /* Adjust zoom controls */
 .leaflet-control-zoom {
     margin-right: calc(var(--sidebar-width) + 20px) !important;
