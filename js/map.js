@@ -16,13 +16,14 @@ const MapManager = {
     manualHoverMarker: null,
     lastPreviewTs: 0,
 
-    // Preloaded railway network from local GeoJSON
+    // Preloaded railway network from local GeoJSON tiles
     railNodes: [],
     railAdj: [],
     railNodeIndexByKey: {},
     railReady: false,
     railLoading: false,
     railLoadPromise: null,
+    railTilesLoaded: new Set(),
 
     init() {
         // Initialize the map, centered on Switzerland
@@ -65,84 +66,98 @@ const MapManager = {
         // Layer group for saved lines
         this.savedLayers = L.featureGroup().addTo(this.map);
 
-        // Kick off loading of the railway network in the background
-        this.loadRailNetwork();
+        // Railway network is loaded lazily from tiles when needed.
     },
 
     /**
-     * Load the Switzerland railway network from a local GeoJSON file and
-     * build a graph of unique nodes and adjacency lists. This runs once and
-     * the data is then reused for all manual drawing.
+     * Load railway tiles for the current map bounds and build/extend the
+     * graph of unique nodes and adjacency lists. Tiles are 1°×1° and are
+     * stored under data/tiles/<lat>_<lon>.geojson.
      */
-    async loadRailNetwork() {
-        if (this.railReady || this.railLoading) {
-            return this.railLoadPromise;
+    async loadRailTilesForBounds(bounds) {
+        if (!bounds) return;
+
+        const sw = bounds.getSouthWest();
+        const ne = bounds.getNorthEast();
+        const pad = 0.5; // Load a bit beyond current view
+        const minLat = Math.floor(sw.lat - pad);
+        const maxLat = Math.floor(ne.lat + pad);
+        const minLon = Math.floor(sw.lng - pad);
+        const maxLon = Math.floor(ne.lng + pad);
+
+        const promises = [];
+
+        for (let lat = minLat; lat <= maxLat; lat++) {
+            for (let lon = minLon; lon <= maxLon; lon++) {
+                const key = `${lat}_${lon}`;
+                if (this.railTilesLoaded.has(key)) continue;
+                this.railTilesLoaded.add(key);
+
+                const url = `data/tiles/${key}.geojson`;
+                promises.push(
+                    fetch(url)
+                        .then((res) => {
+                            if (!res.ok) {
+                                // Tile might simply not exist for this region.
+                                return null;
+                            }
+                            return res.json();
+                        })
+                        .then((data) => {
+                            if (!data || !Array.isArray(data.features)) return;
+                            this._addRailFeaturesToGraph(data.features);
+                        })
+                        .catch(() => { /* ignore errors per-tile */ })
+                );
+            }
         }
 
+        if (promises.length === 0) return;
         this.railLoading = true;
-        this.railLoadPromise = (async () => {
-            try {
-                const response = await fetch('data/switzerland-rail-only.geojson');
-                if (!response.ok) {
-                    console.error('Failed to load local railway GeoJSON:', response.status);
-                    return;
+        await Promise.all(promises);
+        this.railLoading = false;
+        this.railReady = this.railNodes.length > 0;
+    },
+
+    _addRailFeaturesToGraph(features) {
+        if (!features || features.length === 0) return;
+
+        const nodes = this.railNodes;
+        const adj = this.railAdj;
+        const nodeIndexByKey = this.railNodeIndexByKey;
+
+        const addEdge = (a, b) => {
+            if (a === b) return;
+            if (!adj[a]) adj[a] = [];
+            if (!adj[b]) adj[b] = [];
+            adj[a].push(b);
+            adj[b].push(a);
+        };
+
+        features.forEach((f) => {
+            if (!f || !f.geometry || f.geometry.type !== 'LineString') return;
+            const coords = f.geometry.coordinates;
+            if (!Array.isArray(coords) || coords.length < 2) return;
+
+            let prevIdx = null;
+            coords.forEach((coord) => {
+                if (!Array.isArray(coord) || coord.length < 2) return;
+                const lon = coord[0];
+                const lat = coord[1];
+                const key = `${lon.toFixed(5)},${lat.toFixed(5)}`;
+                let idx = nodeIndexByKey[key];
+                if (idx === undefined) {
+                    idx = nodes.length;
+                    nodeIndexByKey[key] = idx;
+                    nodes.push({ lat, lon });
+                    adj[idx] = [];
                 }
-                const data = await response.json();
-                const features = data && data.features ? data.features : [];
-
-                const nodeIndexByKey = {};
-                const nodes = [];
-                const adj = [];
-
-                const addEdge = (a, b) => {
-                    if (a === b) return;
-                    if (!adj[a]) adj[a] = [];
-                    if (!adj[b]) adj[b] = [];
-                    adj[a].push(b);
-                    adj[b].push(a);
-                };
-
-                features.forEach((f) => {
-                    if (!f || !f.geometry || f.geometry.type !== 'LineString') return;
-                    const coords = f.geometry.coordinates;
-                    if (!Array.isArray(coords) || coords.length < 2) return;
-
-                    let prevIdx = null;
-                    coords.forEach((coord) => {
-                        if (!Array.isArray(coord) || coord.length < 2) return;
-                        const lon = coord[0];
-                        const lat = coord[1];
-                        const key = `${lon.toFixed(5)},${lat.toFixed(5)}`;
-                        let idx = nodeIndexByKey[key];
-                        if (idx === undefined) {
-                            idx = nodes.length;
-                            nodeIndexByKey[key] = idx;
-                            nodes.push({ lat, lon });
-                            adj[idx] = [];
-                        }
-                        if (prevIdx !== null) {
-                            addEdge(prevIdx, idx);
-                        }
-                        prevIdx = idx;
-                    });
-                });
-
-                this.railNodes = nodes;
-                this.railAdj = adj;
-                this.railNodeIndexByKey = nodeIndexByKey;
-                this.railReady = nodes.length > 0;
-
-                console.log('Railway network loaded:', {
-                    nodeCount: nodes.length
-                });
-            } catch (e) {
-                console.error('Error loading railway network GeoJSON:', e);
-            } finally {
-                this.railLoading = false;
-            }
-        })();
-
-        return this.railLoadPromise;
+                if (prevIdx !== null) {
+                    addEdge(prevIdx, idx);
+                }
+                prevIdx = idx;
+            });
+        });
     },
 
     clearTempLine() {
@@ -302,10 +317,8 @@ const MapManager = {
     async startManualDraw() {
         if (!this.map) return;
 
-        // Ensure the railway network is loaded before we start.
-        if (!this.railReady) {
-            await this.loadRailNetwork();
-        }
+        // Ensure the railway tiles for the current view are loaded before we start.
+        await this.loadRailTilesForBounds(this.map.getBounds());
         if (!this.railReady) {
             console.warn('Cannot start manual draw: railway network not ready');
             return;
