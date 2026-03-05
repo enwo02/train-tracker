@@ -154,19 +154,67 @@ const App = {
         try {
             const routes = await API.findRouteBetweenStations(this.state.startStation, this.state.endStation);
             console.log("Found routes in app.js:", routes);
-            this.state.routeOptions = routes;
 
-            if (routes.length === 0) {
+            const deduped = this.dedupeRoutesForUi(routes);
+            this.state.routeOptions = deduped;
+
+            if (deduped.length === 0) {
                 this.showToast("Could not find any direct train lines mapped between these stations.");
                 this.ui.savedLinesContainer.classList.remove('hidden');
             } else {
-                this.renderRouteOptions(routes);
+                this.renderRouteOptions(deduped);
             }
         } catch (err) {
             this.showToast("Failed to search for routes. Overpass API might be busy.");
         } finally {
             this.setLoading(false);
         }
+    },
+
+    /**
+     * Collapse raw OJP trips into a minimal set of user-facing options.
+     * Strategy:
+     * - Group by (from, to).
+     * - Within each group:
+     *   - Prefer variants that have a `via` label; if any exist, drop all
+     *     routes without `via` for that (from, to) pair.
+     *   - Then keep only the first route for each distinct `via` value
+     *     (so you get at most one "via Liestal", one "via Rheinfelden", etc.).
+     */
+    dedupeRoutesForUi(routes) {
+        const groups = new Map(); // key: "from|to" -> array of routes
+
+        routes.forEach(route => {
+            const p = route.properties || {};
+            const from = p.from || '';
+            const to = p.to || '';
+            const key = `${from}|${to}`;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(route);
+        });
+
+        const result = [];
+
+        groups.forEach(groupRoutes => {
+            const hasVia = groupRoutes.some(r => (r.properties && r.properties.via));
+
+            // If we have any via-labelled routes, drop the ones without via
+            let candidates = hasVia
+                ? groupRoutes.filter(r => r.properties && r.properties.via)
+                : groupRoutes;
+
+            const seenVia = new Set();
+
+            for (const r of candidates) {
+                const via = (r.properties && r.properties.via) || '';
+                const viaKey = via || '__NO_VIA__';
+                if (seenVia.has(viaKey)) continue;
+                seenVia.add(viaKey);
+                result.push(r);
+            }
+        });
+
+        return result;
     },
 
     renderRouteOptions(routes) {
@@ -178,13 +226,24 @@ const App = {
             const item = document.createElement('div');
             item.className = 'route-item';
 
-            const fromTo = props.from && props.to ? `<div class="line-meta">Dir: ${props.from} ➔ ${props.to}</div>` : '';
+            const title = props.from && props.to ? `${props.from} ➔ ${props.to}` : (props.name || '');
+            const dirMeta = props.directionTo && props.directionTo !== props.to
+                ? `<div class="line-meta">Dir: ${props.from} ➔ ${props.directionTo}</div>`
+                : '';
+            const viaMeta = props.via ? `<div class="line-meta">Via: ${props.via}</div>` : '';
+            // Only show operator if it looks meaningful (not just an internal numeric code).
+            const hasOperator = props.operator && !/^\d+$/.test(props.operator.trim());
+            const operatorMeta = hasOperator ? `<div class="line-meta">Operator: ${props.operator.trim()}</div>` : '';
+            // Departure time didn't add much value for your use case, so we omit it from the UI for now.
+            const timeMeta = '';
 
             item.innerHTML = `
                 <div class="line-info">
-                    <div class="line-name">${props.name}</div>
-                    ${fromTo}
-                    <div class="line-meta">Operator: ${props.operator || 'Unknown'}</div>
+                    <div class="line-name">${title}</div>
+                    ${dirMeta}
+                    ${viaMeta}
+                    ${timeMeta}
+                    ${operatorMeta}
                 </div>
                 <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;">Add</button>
             `;

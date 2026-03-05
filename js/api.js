@@ -147,7 +147,7 @@ const API = {
                     <NumberOfResults>5</NumberOfResults>
                     <IncludeTrackSections>true</IncludeTrackSections>
                     <IncludeLegProjection>true</IncludeLegProjection>
-                    <IncludeIntermediateStops>false</IncludeIntermediateStops>
+                    <IncludeIntermediateStops>true</IncludeIntermediateStops>
                 </Params>
             </OJPTripRequest>
         </siri:ServiceRequest>
@@ -165,7 +165,7 @@ const API = {
 
     parseOJPTripToGeoJSON(xmlDoc) {
         const routes = [];
-        const seenNames = new Set();
+        const seenPathKeys = new Set();
 
         const getElements = (parent, localName) => {
             let els = parent.getElementsByTagName(localName);
@@ -176,49 +176,131 @@ const API = {
 
         const tripResults = getElements(xmlDoc, 'TripResult');
 
+        // Helper to extract a human-friendly service name (e.g. "IC 3", "IR 36").
+        // We explicitly avoid low-level technical IDs like "ojp:91036:A".
+        const getServiceName = (serviceEl) => {
+            if (!serviceEl) return '';
+
+            const nicePattern = /^(IC|IR|RE|EC|RJX?|S|R|SN|PE)\s*\d+/i;
+
+            // 1) Prefer PublishedLineName->Text if it looks like a real line code
+            const publishedEl = getElements(serviceEl, 'PublishedLineName')[0];
+            if (publishedEl) {
+                const textEl = getElements(publishedEl, 'Text')[0] || publishedEl;
+                const raw = (textEl.textContent || '').trim();
+                if (nicePattern.test(raw)) {
+                    return raw;
+                }
+            }
+
+            // 2) Fallback to Name->Text if it looks nice
+            const nameEl = getElements(serviceEl, 'Name')[0];
+            if (nameEl) {
+                const textEl = getElements(nameEl, 'Text')[0] || nameEl;
+                const raw = (textEl.textContent || '').trim();
+                if (nicePattern.test(raw)) {
+                    return raw;
+                }
+            }
+
+            // 3) If nothing matches a friendly pattern, don't show a service code at all
+            return '';
+        };
+
         for (let i = 0; i < tripResults.length; i++) {
             const tr = tripResults[i];
 
             const tripLegs = getElements(tr, 'Leg');
 
+            const tripCoordinates = [];
+            let overallOrigin = '';
+            let overallDestination = '';
+            let operator = '';
+            const serviceNames = new Set();
+            let departureTime = '';
+            const viaStops = new Set();
+            let directionTo = '';
+
             for (let j = 0; j < tripLegs.length; j++) {
                 const leg = tripLegs[j];
 
                 const serviceEl = getElements(leg, 'Service')[0];
-                if (!serviceEl) continue;
+                if (serviceEl) {
+                    const serviceName = getServiceName(serviceEl);
+                    if (serviceName) serviceNames.add(serviceName);
 
-                let lineName = 'Unknown Line';
-                const publishedLineNameEl = getElements(serviceEl, 'PublishedLineName')[0];
-                if (publishedLineNameEl) {
-                    const textEl = getElements(publishedLineNameEl, 'Text')[0];
-                    if (textEl) lineName = textEl.textContent.trim();
-                }
+                    const operatorEl = getElements(serviceEl, 'OperatorRef')[0];
+                    if (operatorEl && !operator) {
+                        operator = operatorEl.textContent.trim();
+                    }
 
-                let destination = '';
-                const destEl = getElements(serviceEl, 'DestinationText')[0];
-                if (destEl) {
-                    const textEl = getElements(destEl, 'Text')[0];
-                    if (textEl) destination = textEl.textContent.trim();
-                }
-
-                let operator = '';
-                const operatorEl = getElements(serviceEl, 'OperatorRef')[0];
-                if (operatorEl) operator = operatorEl.textContent.trim();
-
-                let origin = '';
-                const legBoardEl = getElements(leg, 'LegBoard')[0];
-                if (legBoardEl) {
-                    let stopNameEl = getElements(legBoardEl, 'StopPointName')[0];
-                    if (!stopNameEl) stopNameEl = getElements(legBoardEl, 'StopPlaceName')[0];
-
-                    if (stopNameEl) {
-                        const textEl = getElements(stopNameEl, 'Text')[0];
-                        if (textEl) origin = textEl.textContent.trim();
+                    // Direction: where the physical train continues to
+                    if (!directionTo) {
+                        const destTextEl = getElements(serviceEl, 'DestinationText')[0];
+                        if (destTextEl) {
+                            const textEl = getElements(destTextEl, 'Text')[0] || destTextEl;
+                            const raw = (textEl.textContent || '').trim();
+                            if (raw) directionTo = raw;
+                        }
                     }
                 }
 
+                // Determine overall origin and departure time from the first leg's board stop
+                if (j === 0) {
+                    const legBoardEl = getElements(leg, 'LegBoard')[0];
+                    if (legBoardEl) {
+                        let stopNameEl = getElements(legBoardEl, 'StopPointName')[0];
+                        if (!stopNameEl) stopNameEl = getElements(legBoardEl, 'StopPlaceName')[0];
+
+                        if (stopNameEl) {
+                            const textEl = getElements(stopNameEl, 'Text')[0];
+                            if (textEl) overallOrigin = textEl.textContent.trim();
+                        }
+
+                        // Try to extract a human-readable departure time (HH:MM) if available
+                        const depTimeEl = getElements(legBoardEl, 'ServiceDepartureTime')[0]
+                            || getElements(legBoardEl, 'TimetabledTime')[0];
+                        if (depTimeEl && !departureTime) {
+                            const rawTime = (depTimeEl.textContent || '').trim();
+                            // Many OJP implementations use ISO 8601 timestamps
+                            if (rawTime.length >= 16 && rawTime.includes('T')) {
+                                departureTime = rawTime.substring(11, 16); // HH:MM
+                            }
+                        }
+                    }
+                }
+
+                // Collect intermediate stop names for this leg (used to distinguish paths, e.g. via Olten vs via Rheinfelden)
+                const legIntermediates = getElements(leg, 'LegIntermediate');
+                for (let li = 0; li < legIntermediates.length; li++) {
+                    const interm = legIntermediates[li];
+                    let stopNameEl = getElements(interm, 'StopPointName')[0];
+                    if (!stopNameEl) stopNameEl = getElements(interm, 'StopPlaceName')[0];
+                    if (stopNameEl) {
+                        const textEl = getElements(stopNameEl, 'Text')[0] || stopNameEl;
+                        const name = (textEl.textContent || '').trim();
+                        if (name && name !== overallOrigin && name !== overallDestination) {
+                            viaStops.add(name);
+                        }
+                    }
+                }
+
+                // Determine overall destination from the last leg's alight stop
+                if (j === tripLegs.length - 1) {
+                    const legAlightEl = getElements(leg, 'LegAlight')[0];
+                    if (legAlightEl) {
+                        let stopNameEl = getElements(legAlightEl, 'StopPointName')[0];
+                        if (!stopNameEl) stopNameEl = getElements(legAlightEl, 'StopPlaceName')[0];
+
+                        if (stopNameEl) {
+                            const textEl = getElements(stopNameEl, 'Text')[0];
+                            if (textEl) overallDestination = textEl.textContent.trim();
+                        }
+                    }
+                }
+
+                // Collect geometry for this leg and append to the trip's overall geometry
                 const legTracks = getElements(leg, 'LegTrack');
-                const coordinates = [];
                 for (let k = 0; k < legTracks.length; k++) {
                     const trackSects = getElements(legTracks[k], 'TrackSection');
                     for (let m = 0; m < trackSects.length; m++) {
@@ -231,36 +313,62 @@ const API = {
                                 const lonEl = getElements(pos, 'Longitude')[0];
 
                                 if (latEl && lonEl) {
-                                    coordinates.push([parseFloat(lonEl.textContent), parseFloat(latEl.textContent)]);
+                                    tripCoordinates.push([parseFloat(lonEl.textContent), parseFloat(latEl.textContent)]);
                                 }
                             }
                         }
                     }
                 }
+            }
 
-                if (coordinates.length > 1) {
-                    const routeName = `${lineName} (${origin} ➔ ${destination})`;
+            if (tripCoordinates.length > 1 && overallOrigin && overallDestination) {
+                const viaArray = Array.from(viaStops);
 
-                    if (!seenNames.has(routeName)) {
-                        seenNames.add(routeName);
-                        routes.push({
-                            type: 'Feature',
-                            id: `ojp-leg-${i}-${j}`,
-                            properties: {
-                                id: `ojp-leg-${i}-${j}`,
-                                name: routeName,
-                                network: operator || 'Train Network',
-                                operator: operator,
-                                from: origin,
-                                to: destination
-                            },
-                            geometry: {
-                                type: 'LineString',
-                                coordinates: coordinates
-                            }
-                        });
-                    }
+                // Build a lightweight geometry-based key so that trips following
+                // the same physical path collapse into a single option, even if
+                // intermediate-stop metadata differs (e.g. one trip has no "via"
+                // but shares the exact same corridor as another).
+                const firstIdx = 0;
+                const midIdx = Math.floor(tripCoordinates.length / 2);
+                const lastIdx = tripCoordinates.length - 1;
+                const pick = (idx) => {
+                    const [lon, lat] = tripCoordinates[idx];
+                    // round to ~100m precision which is enough to distinguish corridors
+                    return `${lon.toFixed(3)},${lat.toFixed(3)}`;
+                };
+                const shapeKey = `${pick(firstIdx)}|${pick(midIdx)}|${pick(lastIdx)}`;
+
+                const primaryVia = viaArray[0] || '';
+                const pathKey = `${overallOrigin}|${overallDestination}|${shapeKey}`;
+                if (seenPathKeys.has(pathKey)) {
+                    continue;
                 }
+                seenPathKeys.add(pathKey);
+
+                const baseName = `${overallOrigin} ➔ ${overallDestination}`;
+                const serviceSummary = Array.from(serviceNames).join(' + ');
+                const routeName = baseName;
+
+                const id = `ojp-trip-${i}`;
+                routes.push({
+                    type: 'Feature',
+                    id: id,
+                    properties: {
+                        id: id,
+                        name: routeName,
+                        network: operator || 'Train Network',
+                        operator: operator,
+                        from: overallOrigin,
+                        to: overallDestination,
+                        departureTime: departureTime,
+                        via: primaryVia,
+                        directionTo: directionTo
+                    },
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: tripCoordinates
+                    }
+                });
             }
         }
 
