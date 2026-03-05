@@ -1,5 +1,6 @@
 const OJP_URL = 'https://api.opentransportdata.swiss/ojp20';
 const OJP_TOKEN = 'eyJvcmciOiI2NDA2NTFhNTIyZmEwNTAwMDEyOWJiZTEiLCJpZCI6ImYxNDgyZGIxZDkxNjQ2NTFiNGIwMGMxYzdhNDQ5ZGFlIiwiaCI6Im11cm11cjEyOCJ9';
+const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
 const API = {
     async fetchOJP(xmlPayload) {
@@ -381,7 +382,271 @@ const API = {
                 });
             }
         }
-
         return routes;
+    },
+
+    /**
+     * Given a small number of user-selected points (typically start/end and
+     * maybe one or two via points), fetch nearby railway infrastructure from
+     * OpenStreetMap via the Overpass API and compute a path that follows
+     * actual railway tracks between the clicked points.
+     *
+     * `points` is expected to be an array of objects with `{ lat, lng }`.
+     * Returns an array of `[lon, lat]` coordinates suitable for a GeoJSON
+     * LineString, or an empty array if no route can be found.
+     */
+    async buildRailRouteFromPoints(points) {
+        if (!points || points.length < 2) {
+            return [];
+        }
+
+        // Compute a bounding box around all clicked points. We use a
+        // reasonably generous padding so that long-ish segments still
+        // have continuous track coverage within the box.
+        let minLat = Infinity, maxLat = -Infinity;
+        let minLon = Infinity, maxLon = -Infinity;
+        points.forEach((p) => {
+            if (p.lat < minLat) minLat = p.lat;
+            if (p.lat > maxLat) maxLat = p.lat;
+            if (p.lng < minLon) minLon = p.lng;
+            if (p.lng > maxLon) maxLon = p.lng;
+        });
+
+        // Add padding so Overpass has enough context to connect tracks.
+        // 0.2° is roughly 20–25 km in lat, which is usually enough for
+        // a single "segment" the user wants to draw.
+        const pad = 0.2;
+        const south = minLat - pad;
+        const north = maxLat + pad;
+        const west = minLon - pad;
+        const east = maxLon + pad;
+
+        const overpassQuery = `
+[out:json][timeout:25];
+(
+  way["railway"~"^(rail|light_rail|subway|tram)$"](${south},${west},${north},${east});
+);
+(._;>;);
+out body;
+`;
+
+        let json;
+        try {
+            const url = `${OVERPASS_URL}?data=${encodeURIComponent(overpassQuery)}`;
+            const response = await fetch(url, {
+                method: 'GET'
+            });
+
+            if (!response.ok) {
+                console.error('Overpass API error:', response.status, await response.text());
+                return [];
+            }
+
+            json = await response.json();
+        } catch (e) {
+            console.error('Failed to fetch railway data from Overpass:', e);
+            return [];
+        }
+
+        if (!json || !Array.isArray(json.elements)) {
+            return [];
+        }
+
+        // Build node and graph structures
+        const nodesById = {};
+        const ways = [];
+
+        json.elements.forEach((el) => {
+            if (el.type === 'node') {
+                nodesById[el.id] = {
+                    id: el.id,
+                    lat: el.lat,
+                    lon: el.lon
+                };
+            } else if (el.type === 'way' && Array.isArray(el.nodes)) {
+                ways.push(el);
+            }
+        });
+
+        const nodeIds = Object.keys(nodesById);
+        if (nodeIds.length === 0 || ways.length === 0) {
+            console.warn('Overpass response had no railway nodes/ways in bbox', {
+                nodeCount: nodeIds.length,
+                wayCount: ways.length,
+                bbox: { south, west, north, east }
+            });
+            return [];
+        }
+
+        // Adjacency list for the railway graph
+        const adj = {};
+        ways.forEach((way) => {
+            const ids = way.nodes;
+            for (let i = 0; i < ids.length - 1; i++) {
+                const a = ids[i];
+                const b = ids[i + 1];
+                if (!adj[a]) adj[a] = new Set();
+                if (!adj[b]) adj[b] = new Set();
+                adj[a].add(b);
+                adj[b].add(a);
+            }
+        });
+
+        if (Object.keys(adj).length === 0) {
+            return [];
+        }
+
+        const allNodeIds = Object.keys(nodesById);
+
+        // Find the nearest graph node anywhere in the network
+        const findNearestNodeId = (lat, lon) => {
+            let bestId = null;
+            let bestDist = Infinity;
+
+            for (let i = 0; i < allNodeIds.length; i++) {
+                const id = allNodeIds[i];
+                const n = nodesById[id];
+                const dLat = lat - n.lat;
+                const dLon = lon - n.lon;
+                const dist2 = dLat * dLat + dLon * dLon;
+                if (dist2 < bestDist) {
+                    bestDist = dist2;
+                    bestId = id;
+                }
+            }
+
+            return bestId;
+        };
+
+        // Find the nearest (way, node index) pair. This is used first to
+        // handle the common/simple case where both clicks lie on the same
+        // physical way: we can then just take the node slice between them
+        // without running a full graph search.
+        const findNearestOnWay = (lat, lon) => {
+            let bestWay = null;
+            let bestIndex = -1;
+            let bestDist = Infinity;
+
+            ways.forEach((way) => {
+                const ids = way.nodes;
+                for (let i = 0; i < ids.length; i++) {
+                    const n = nodesById[ids[i]];
+                    if (!n) continue;
+                    const dLat = lat - n.lat;
+                    const dLon = lon - n.lon;
+                    const dist2 = dLat * dLat + dLon * dLon;
+                    if (dist2 < bestDist) {
+                        bestDist = dist2;
+                        bestWay = way;
+                        bestIndex = i;
+                    }
+                }
+            });
+
+            if (!bestWay || bestIndex < 0) return null;
+            return { way: bestWay, index: bestIndex };
+        };
+
+        const bfsPath = (startId, endId) => {
+            if (!startId || !endId || !adj[startId] || !adj[endId]) {
+                return null;
+            }
+
+            const queue = [startId];
+            const visited = new Set([startId]);
+            const prev = {};
+
+            while (queue.length > 0) {
+                const current = queue.shift();
+                if (current === endId) break;
+
+                const neighbors = adj[current];
+                if (!neighbors) continue;
+
+                for (const neighbor of neighbors) {
+                    if (!visited.has(neighbor)) {
+                        visited.add(neighbor);
+                        prev[neighbor] = current;
+                        queue.push(neighbor);
+                    }
+                }
+            }
+
+            if (!visited.has(endId)) {
+                return null;
+            }
+
+            const path = [];
+            let cur = endId;
+            while (cur !== undefined) {
+                path.push(cur);
+                cur = prev[cur];
+            }
+            path.reverse();
+            return path;
+        };
+
+        const routeCoords = [];
+
+        // For each consecutive pair of clicked points, find a path along tracks
+        for (let i = 0; i < points.length - 1; i++) {
+            const a = points[i];
+            const b = points[i + 1];
+
+            // First try the simple case: both clicks snap onto the same way.
+            const aSnap = findNearestOnWay(a.lat, a.lng);
+            const bSnap = findNearestOnWay(b.lat, b.lng);
+
+            if (aSnap && bSnap && aSnap.way === bSnap.way) {
+                const ids = aSnap.way.nodes;
+                let startIdx = aSnap.index;
+                let endIdx = bSnap.index;
+
+                if (startIdx > endIdx) {
+                    const tmp = startIdx;
+                    startIdx = endIdx;
+                    endIdx = tmp;
+                }
+
+                for (let idx = startIdx; idx <= endIdx; idx++) {
+                    const n = nodesById[ids[idx]];
+                    if (!n) continue;
+                    // Avoid duplicating when stitching segments
+                    if (routeCoords.length > 0 && i > 0 && idx === startIdx) {
+                        continue;
+                    }
+                    routeCoords.push([n.lon, n.lat]);
+                }
+                continue;
+            }
+
+            // Fallback: run a graph search between nearest nodes on the network.
+            const startNodeId = findNearestNodeId(a.lat, a.lng);
+            const endNodeId = findNearestNodeId(b.lat, b.lng);
+
+            const pathIds = bfsPath(startNodeId, endNodeId);
+            if (!pathIds || pathIds.length < 2) {
+                console.warn('Could not find railway path between points', {
+                    from: a,
+                    to: b,
+                    startNodeId,
+                    endNodeId
+                });
+                return [];
+            }
+
+            pathIds.forEach((nodeId, idx) => {
+                const n = nodesById[nodeId];
+                if (!n) return;
+
+                // Avoid duplicating the junction node when stitching segments
+                if (routeCoords.length > 0 && i > 0 && idx === 0) {
+                    return;
+                }
+                routeCoords.push([n.lon, n.lat]);
+            });
+        }
+
+        return routeCoords;
     }
 };

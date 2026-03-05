@@ -5,7 +5,8 @@ const App = {
         routeOptions: [],
         selectedRoute: null,
         loading: false,
-        activeInput: null // 'start' or 'end'
+        activeInput: null, // 'start' or 'end'
+        isDrawingManual: false
     },
 
     // UI Elements
@@ -17,6 +18,8 @@ const App = {
         btnSearchRoute: document.getElementById('btn-search-route'),
         btnSwapStations: document.getElementById('btn-swap-stations'),
         toggleRailwayLines: document.getElementById('toggle-railway-lines'),
+        btnDrawRoute: document.getElementById('btn-draw-route'),
+        drawHint: document.getElementById('draw-hint'),
 
         loadingIndicator: document.getElementById('loading-indicator'),
         loadingText: document.getElementById('loading-text'),
@@ -72,6 +75,18 @@ const App = {
                 MapManager.setRailwayOverlayVisible(show);
             });
         }
+
+        // Manual draw button for custom routes
+        if (this.ui.btnDrawRoute) {
+            this.ui.btnDrawRoute.addEventListener('click', () => this.toggleManualDraw());
+        }
+
+        // Allow cancelling drawing with Esc key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.state.isDrawingManual) {
+                this.cancelManualDraw();
+            }
+        });
     },
 
     handleInput(value, type) {
@@ -313,6 +328,86 @@ const App = {
         });
 
         this.ui.routeOptionsContainer.classList.remove('hidden');
+    },
+
+    /**
+     * Toggle manual drawing mode on/off. When turning off and a valid line
+     * has been drawn, save the snapped railway geometry as a route.
+     */
+    async toggleManualDraw() {
+        if (!this.state.isDrawingManual) {
+            // Enter drawing mode
+            this.state.isDrawingManual = true;
+            if (this.ui.btnDrawRoute) {
+                this.ui.btnDrawRoute.textContent = 'Finish drawing (save route)';
+            }
+            if (this.ui.drawHint) {
+                this.ui.drawHint.classList.remove('hidden');
+            }
+            await MapManager.startManualDraw();
+            this.showToast('Click along the track on the map to trace your route.');
+            return;
+        }
+
+        // Finish drawing and save using the snapped railway geometry that
+        // MapManager has built up.
+        const coords = MapManager.getManualDrawCoordinates();
+        if (!coords || coords.length < 2) {
+            this.showToast('Add at least two points on the map to define a route.');
+            return;
+        }
+
+        const defaultName = 'Custom route';
+        const name = prompt('Name this route (e.g. Zürich HB ➔ Chur):', defaultName) || defaultName;
+        const trimmedName = name.trim() || defaultName;
+
+        const id = `manual-${Date.now()}`;
+        const feature = {
+            type: 'Feature',
+            id: id,
+            properties: {
+                id: id,
+                name: trimmedName,
+                source: 'manual'
+            },
+            geometry: {
+                type: 'LineString',
+                coordinates: coords
+            }
+        };
+
+        const added = Storage.saveLine(feature);
+        if (added) {
+            this.showToast(`Saved ${trimmedName}`);
+        } else {
+            this.showToast(`${trimmedName} is already saved`);
+        }
+
+        MapManager.cancelManualDraw();
+        this.state.isDrawingManual = false;
+        if (this.ui.btnDrawRoute) {
+            this.ui.btnDrawRoute.textContent = 'Draw custom route on map';
+        }
+        if (this.ui.drawHint) {
+            this.ui.drawHint.classList.add('hidden');
+        }
+
+        this.updateSavedUI();
+    },
+
+    /**
+     * Cancel drawing without saving the current manual route.
+     */
+    cancelManualDraw() {
+        MapManager.cancelManualDraw();
+        this.state.isDrawingManual = false;
+        if (this.ui.btnDrawRoute) {
+            this.ui.btnDrawRoute.textContent = 'Draw custom route on map';
+        }
+        if (this.ui.drawHint) {
+            this.ui.drawHint.classList.add('hidden');
+        }
+        this.showToast('Drawing cancelled');
     },
 
     addRoute(routeFeature) {

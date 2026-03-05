@@ -301,6 +301,13 @@ input[type="text"]:focus {
     cursor: pointer;
 }
 
+#draw-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
 /* Section Headers */
 .section-header {
     padding: 20px 24px 12px;
