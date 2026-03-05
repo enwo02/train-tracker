@@ -153,6 +153,7 @@ const App = {
 
         try {
             const routes = await API.findRouteBetweenStations(this.state.startStation, this.state.endStation);
+            console.log("Found routes in app.js:", routes);
             this.state.routeOptions = routes;
 
             if (routes.length === 0) {

@@ -1,37 +1,112 @@
+const OJP_URL = 'https://api.opentransportdata.swiss/ojp20';
+const OJP_TOKEN = 'eyJvcmciOiI2NDA2NTFhNTIyZmEwNTAwMDEyOWJiZTEiLCJpZCI6ImYxNDgyZGIxZDkxNjQ2NTFiNGIwMGMxYzdhNDQ5ZGFlIiwiaCI6Im11cm11cjEyOCJ9';
+
 const API = {
-    // 1. Station Autocomplete using Nominatim
+    async fetchOJP(xmlPayload) {
+        const response = await fetch(OJP_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/xml',
+                'Authorization': `Bearer ${OJP_TOKEN}`
+            },
+            body: xmlPayload
+        });
+        if (!response.ok) {
+            throw new Error(`OJP API error: ${response.status}`);
+        }
+        const text = await response.text();
+        const parser = new DOMParser();
+        return parser.parseFromString(text, "application/xml");
+    },
+
+    // 1. Station Autocomplete using OJP LocationInformationRequest
     async searchStation(query) {
         if (!query || query.length < 3) return [];
 
-        // Focus search on railway stations and explicitly enforce English as the primary language
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&class=railway&type=station&limit=5&accept-language=en,local`;
+        const requestTimestamp = new Date().toISOString();
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<OJP xmlns="http://www.vdv.de/ojp" xmlns:siri="http://www.siri.org.uk/siri" version="2.0">
+    <OJPRequest>
+        <siri:ServiceRequest>
+            <siri:RequestTimestamp>${requestTimestamp}</siri:RequestTimestamp>
+            <siri:RequestorRef>TrainTrackerWeb_test</siri:RequestorRef>
+            <OJPLocationInformationRequest>
+                <siri:RequestTimestamp>${requestTimestamp}</siri:RequestTimestamp>
+                <siri:MessageIdentifier>LIR-1</siri:MessageIdentifier>
+                <InitialInput>
+                    <Name>${query}</Name>
+                </InitialInput>
+                <Restrictions>
+                    <Type>stop</Type>
+                    <NumberOfResults>10</NumberOfResults>
+                </Restrictions>
+            </OJPLocationInformationRequest>
+        </siri:ServiceRequest>
+    </OJPRequest>
+</OJP>`;
 
         try {
-            const response = await fetch(url, {
-                headers: {
-                    'Accept-Language': 'en' // Reinforce English
-                }
-            });
-            if (!response.ok) throw new Error("Nominatim API error");
-            const data = await response.json();
-
+            const xmlDoc = await this.fetchOJP(xml);
             const results = [];
             const seenNames = new Set();
 
-            for (const item of data) {
-                const name = item.display_name.split(',')[0].trim();
-                // Prevent duplicate entries like multiple "Basel SBB" nodes
-                if (!seenNames.has(name)) {
+            const getElements = (parent, localName) => {
+                let els = parent.getElementsByTagName(localName);
+                if (els.length === 0) els = parent.getElementsByTagName('ojp:' + localName);
+                if (els.length === 0) els = parent.getElementsByTagName('siri:' + localName);
+                return els;
+            };
+
+            const placeResultsArr = getElements(xmlDoc, 'PlaceResult');
+
+            for (let i = 0; i < placeResultsArr.length; i++) {
+                const pr = placeResultsArr[i];
+
+                let stopPlaceRef = '';
+                let name = '';
+                let lat = 0;
+                let lon = 0;
+
+                const stopPlaceRefEl = getElements(pr, 'StopPlaceRef')[0];
+                if (stopPlaceRefEl) {
+                    stopPlaceRef = stopPlaceRefEl.textContent;
+                }
+
+                const nameEl = getElements(pr, 'Name')[0];
+                if (nameEl) {
+                    const textEl = getElements(nameEl, 'Text')[0];
+                    if (textEl) name = textEl.textContent.split('(')[0].trim();
+                }
+
+                if (!name) {
+                    const stopPlaceNameEl = getElements(pr, 'StopPlaceName')[0];
+                    if (stopPlaceNameEl) {
+                        const textEl = getElements(stopPlaceNameEl, 'Text')[0];
+                        if (textEl) name = textEl.textContent.split('(')[0].trim();
+                    }
+                }
+
+                const geoEl = getElements(pr, 'GeoPosition')[0];
+                if (geoEl) {
+                    const latEl = getElements(geoEl, 'Latitude')[0];
+                    const lonEl = getElements(geoEl, 'Longitude')[0];
+                    if (latEl && lonEl) {
+                        lat = parseFloat(latEl.textContent);
+                        lon = parseFloat(lonEl.textContent);
+                    }
+                }
+
+                if (name && stopPlaceRef && !seenNames.has(name)) {
                     seenNames.add(name);
                     results.push({
                         name: name,
-                        fullName: item.display_name,
-                        lat: parseFloat(item.lat),
-                        lon: parseFloat(item.lon)
+                        fullName: name,
+                        lat: lat,
+                        lon: lon,
+                        id: stopPlaceRef
                     });
                 }
             }
-
             return results;
         } catch (error) {
             console.error("Error searching station:", error);
@@ -39,239 +114,156 @@ const API = {
         }
     },
 
-    // 2. Find Routes between two stations using Overpass
+    // 2. Find Routes between two stations using OJP TripRequest
     async findRouteBetweenStations(startStation, endStation) {
-        // Build a bounding box that encompasses both stations
-        const minLat = Math.min(startStation.lat, endStation.lat);
-        const maxLat = Math.max(startStation.lat, endStation.lat);
-        const minLon = Math.min(startStation.lon, endStation.lon);
-        const maxLon = Math.max(startStation.lon, endStation.lon);
+        if (!startStation.id || !endStation.id) {
+            throw new Error("Start or end station is missing StopPlaceRef ID (id property).");
+        }
 
-        // A smaller padding (approx 5km) to keep the query fast
-        const pad = 0.05;
-        const bbox = `${minLat - pad},${minLon - pad},${maxLat + pad},${maxLon + pad}`;
+        const requestTimestamp = new Date().toISOString();
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<OJP xmlns="http://www.vdv.de/ojp" xmlns:siri="http://www.siri.org.uk/siri" version="2.0">
+    <OJPRequest>
+        <siri:ServiceRequest>
+            <siri:RequestTimestamp>${requestTimestamp}</siri:RequestTimestamp>
+            <siri:RequestorRef>TrainTrackerWeb_test</siri:RequestorRef>
+            <OJPTripRequest>
+                <siri:RequestTimestamp>${requestTimestamp}</siri:RequestTimestamp>
+                <siri:MessageIdentifier>TR-1</siri:MessageIdentifier>
+                <Origin>
+                    <PlaceRef>
+                        <StopPlaceRef>${startStation.id}</StopPlaceRef>
+                        <Name><Text>${startStation.name}</Text></Name>
+                    </PlaceRef>
+                    <DepArrTime>${requestTimestamp}</DepArrTime>
+                </Origin>
+                <Destination>
+                    <PlaceRef>
+                        <StopPlaceRef>${endStation.id}</StopPlaceRef>
+                        <Name><Text>${endStation.name}</Text></Name>
+                    </PlaceRef>
+                </Destination>
+                <Params>
+                    <NumberOfResults>5</NumberOfResults>
+                    <IncludeTrackSections>true</IncludeTrackSections>
+                    <IncludeLegProjection>true</IncludeLegProjection>
+                    <IncludeIntermediateStops>false</IncludeIntermediateStops>
+                </Params>
+            </OJPTripRequest>
+        </siri:ServiceRequest>
+    </OJPRequest>
+</OJP>`;
 
-        const query = `
-            [out:json][timeout:50];
-            relation["type"="route"]["route"="train"](${bbox});
-            out body;
-            >;
-            out skel qt;
-        `;
-
-        const maxRetries = 3;
-        let attempt = 0;
-
-        while (attempt <= maxRetries) {
-            try {
-                const response = await fetch('https://overpass-api.de/api/interpreter', {
-                    method: 'POST',
-                    body: query
-                });
-
-                if (!response.ok) {
-                    if ((response.status === 429 || response.status === 504 || response.status === 503) && attempt < maxRetries) {
-                        attempt++;
-                        const delay = 2000 * Math.pow(2, attempt - 1); // 2s, 4s, 8s
-                        console.warn(`Overpass API busy (status ${response.status}). Retrying in ${delay}ms...`);
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        continue;
-                    }
-                    throw new Error(`Overpass API error: ${response.status}`);
-                }
-
-                const data = await response.json();
-                return this.parseOverpassRelationsToGeoJSON(data, startStation, endStation);
-            } catch (error) {
-                if (attempt < maxRetries) {
-                    attempt++;
-                    const delay = 2000 * Math.pow(2, attempt - 1);
-                    console.warn(`Overpass API fetch error: ${error.message}. Retrying in ${delay}ms...`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    continue;
-                }
-                console.error("Error fetching route:", error);
-                throw error;
-            }
+        try {
+            const xmlDoc = await this.fetchOJP(xml);
+            return this.parseOJPTripToGeoJSON(xmlDoc);
+        } catch (error) {
+            console.error("Error fetching route:", error);
+            throw error;
         }
     },
 
-    // Haversine distance in meters
-    calculateDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371e3; // metres
-        const lat1Rad = lat1 * Math.PI / 180;
-        const lat2Rad = lat2 * Math.PI / 180;
-        const deltaLat = (lat2 - lat1) * Math.PI / 180;
-        const deltaLon = (lon2 - lon1) * Math.PI / 180;
-
-        const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-            Math.cos(lat1Rad) * Math.cos(lat2Rad) *
-            Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-        return R * c;
-    },
-
-    parseOverpassRelationsToGeoJSON(data, startStation, endStation) {
-        const nodes = {};
-        const ways = {};
+    parseOJPTripToGeoJSON(xmlDoc) {
         const routes = [];
-
-        // 1. Map nodes
-        data.elements.forEach(el => {
-            if (el.type === 'node') {
-                nodes[el.id] = [el.lon, el.lat];
-            }
-        });
-
-        // 2. Map ways (arrays of coordinates)
-        data.elements.forEach(el => {
-            if (el.type === 'way' && el.nodes) {
-                const coords = el.nodes.map(nid => nodes[nid]).filter(Boolean);
-                if (coords.length > 1) {
-                    ways[el.id] = coords;
-                }
-            }
-        });
-
-        // 3. Reconstruct Relations and Filter
-        data.elements.forEach(el => {
-            if (el.type === 'relation' && el.members) {
-                let ref = el.tags.ref || "";
-                let rawName = el.tags.name || "";
-                let name = "Unknown Route";
-
-                if (ref && rawName) {
-                    const cleanRef = ref.replace(/\s+/g, '').toLowerCase();
-                    const cleanNamePrefix = rawName.replace(/\s+/g, '').toLowerCase();
-
-                    // Prevent duplication like "IR36 - IR36"
-                    if (cleanNamePrefix.startsWith(cleanRef)) {
-                        name = rawName;
-                    } else {
-                        name = `${ref} - ${rawName}`;
-                    }
-                } else {
-                    name = rawName || ref || "Unknown Route";
-                }
-
-                // Normalize varying arrow styles to a single standard arrow ➔
-                name = name.replace(/\s*(=>|->|⇒|→)\s*/g, ' ➔ ');
-
-                const multiLineCoords = [];
-                let minStartDist = Infinity;
-                let minEndDist = Infinity;
-
-                el.members.forEach(member => {
-                    if (member.type === 'way' && ways[member.ref]) {
-                        const coordsList = ways[member.ref];
-                        multiLineCoords.push(coordsList);
-
-                        // Check distance to start/end stations for each node in the way
-                        coordsList.forEach(coord => {
-                            const lon = coord[0];
-                            const lat = coord[1];
-
-                            const distToStart = this.calculateDistance(lat, lon, startStation.lat, startStation.lon);
-                            const distToEnd = this.calculateDistance(lat, lon, endStation.lat, endStation.lon);
-
-                            if (distToStart < minStartDist) minStartDist = distToStart;
-                            if (distToEnd < minEndDist) minEndDist = distToEnd;
-                        });
-                    }
-                });
-
-                // A valid route must pass within 2000 meters of both the start and end stations
-                if (multiLineCoords.length > 0 && minStartDist < 2000 && minEndDist < 2000) {
-
-                    // --- Geometry Trimming Logic ---
-                    // The route likely extends past the start/end stations (e.g., to Paris).
-                    // We want to clip the line so it only draws the segment between start and end.
-
-                    // First, flatten the multiLineCoords to find the closest points
-                    // This relies on the way elements being generally ordered sequentially, 
-                    // which is mostly true for route relations, but we handle unordered ways by 
-                    // finding the overall closest way/index pairs for start and end.
-
-                    let bestStart = { wayIdx: -1, ptIdx: -1, dist: Infinity };
-                    let bestEnd = { wayIdx: -1, ptIdx: -1, dist: Infinity };
-
-                    multiLineCoords.forEach((way, wayIdx) => {
-                        way.forEach((coord, ptIdx) => {
-                            const lon = coord[0];
-                            const lat = coord[1];
-                            const dStart = this.calculateDistance(lat, lon, startStation.lat, startStation.lon);
-                            const dEnd = this.calculateDistance(lat, lon, endStation.lat, endStation.lon);
-
-                            if (dStart < bestStart.dist) {
-                                bestStart = { wayIdx, ptIdx, dist: dStart };
-                            }
-                            if (dEnd < bestEnd.dist) {
-                                bestEnd = { wayIdx, ptIdx, dist: dEnd };
-                            }
-                        });
-                    });
-
-                    // If we found valid start/end anchors on the line
-                    let clippedWays = [];
-                    if (bestStart.wayIdx !== -1 && bestEnd.wayIdx !== -1) {
-                        // Ensure start is before end. For circular or complex routes this might be tricky,
-                        // but generally relation ways are ordered sequentially.
-                        let first = bestStart;
-                        let second = bestEnd;
-
-                        if (bestStart.wayIdx > bestEnd.wayIdx ||
-                            (bestStart.wayIdx === bestEnd.wayIdx && bestStart.ptIdx > bestEnd.ptIdx)) {
-                            // Reverse order
-                            first = bestEnd;
-                            second = bestStart;
-                        }
-
-                        // Extract the slice
-                        for (let i = first.wayIdx; i <= second.wayIdx; i++) {
-                            let way = multiLineCoords[i];
-                            let startPt = (i === first.wayIdx) ? first.ptIdx : 0;
-                            let endPt = (i === second.wayIdx) ? second.ptIdx : way.length - 1;
-
-                            // Include the segment
-                            clippedWays.push(way.slice(startPt, endPt + 1));
-                        }
-                    } else {
-                        // Fallback: if trimming logic fails, just use the whole line
-                        clippedWays = multiLineCoords;
-                    }
-
-                    routes.push({
-                        type: 'Feature',
-                        id: el.id,
-                        properties: {
-                            id: el.id,
-                            name: name,
-                            network: el.tags.network || 'Unknown Network',
-                            operator: el.tags.operator || '',
-                            from: el.tags.from || '',
-                            to: el.tags.to || ''
-                        },
-                        geometry: {
-                            type: 'MultiLineString',
-                            coordinates: clippedWays
-                        }
-                    });
-                }
-            }
-        });
-
-        // Filter out junk and deduplicate loosely
-        const uniqueRoutes = [];
         const seenNames = new Set();
 
-        for (const r of routes) {
-            if (!seenNames.has(r.properties.name)) {
-                seenNames.add(r.properties.name);
-                uniqueRoutes.push(r);
+        const getElements = (parent, localName) => {
+            let els = parent.getElementsByTagName(localName);
+            if (els.length === 0) els = parent.getElementsByTagName('ojp:' + localName);
+            if (els.length === 0) els = parent.getElementsByTagName('siri:' + localName);
+            return els;
+        };
+
+        const tripResults = getElements(xmlDoc, 'TripResult');
+
+        for (let i = 0; i < tripResults.length; i++) {
+            const tr = tripResults[i];
+
+            const tripLegs = getElements(tr, 'Leg');
+
+            for (let j = 0; j < tripLegs.length; j++) {
+                const leg = tripLegs[j];
+
+                const serviceEl = getElements(leg, 'Service')[0];
+                if (!serviceEl) continue;
+
+                let lineName = 'Unknown Line';
+                const publishedLineNameEl = getElements(serviceEl, 'PublishedLineName')[0];
+                if (publishedLineNameEl) {
+                    const textEl = getElements(publishedLineNameEl, 'Text')[0];
+                    if (textEl) lineName = textEl.textContent.trim();
+                }
+
+                let destination = '';
+                const destEl = getElements(serviceEl, 'DestinationText')[0];
+                if (destEl) {
+                    const textEl = getElements(destEl, 'Text')[0];
+                    if (textEl) destination = textEl.textContent.trim();
+                }
+
+                let operator = '';
+                const operatorEl = getElements(serviceEl, 'OperatorRef')[0];
+                if (operatorEl) operator = operatorEl.textContent.trim();
+
+                let origin = '';
+                const legBoardEl = getElements(leg, 'LegBoard')[0];
+                if (legBoardEl) {
+                    let stopNameEl = getElements(legBoardEl, 'StopPointName')[0];
+                    if (!stopNameEl) stopNameEl = getElements(legBoardEl, 'StopPlaceName')[0];
+
+                    if (stopNameEl) {
+                        const textEl = getElements(stopNameEl, 'Text')[0];
+                        if (textEl) origin = textEl.textContent.trim();
+                    }
+                }
+
+                const legTracks = getElements(leg, 'LegTrack');
+                const coordinates = [];
+                for (let k = 0; k < legTracks.length; k++) {
+                    const trackSects = getElements(legTracks[k], 'TrackSection');
+                    for (let m = 0; m < trackSects.length; m++) {
+                        const linkProjs = getElements(trackSects[m], 'LinkProjection');
+                        for (let n = 0; n < linkProjs.length; n++) {
+                            const posList = getElements(linkProjs[n], 'Position');
+                            for (let p = 0; p < posList.length; p++) {
+                                const pos = posList[p];
+                                const latEl = getElements(pos, 'Latitude')[0];
+                                const lonEl = getElements(pos, 'Longitude')[0];
+
+                                if (latEl && lonEl) {
+                                    coordinates.push([parseFloat(lonEl.textContent), parseFloat(latEl.textContent)]);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (coordinates.length > 1) {
+                    const routeName = `${lineName} (${origin} ➔ ${destination})`;
+
+                    if (!seenNames.has(routeName)) {
+                        seenNames.add(routeName);
+                        routes.push({
+                            type: 'Feature',
+                            id: `ojp-leg-${i}-${j}`,
+                            properties: {
+                                id: `ojp-leg-${i}-${j}`,
+                                name: routeName,
+                                network: operator || 'Train Network',
+                                operator: operator,
+                                from: origin,
+                                to: destination
+                            },
+                            geometry: {
+                                type: 'LineString',
+                                coordinates: coordinates
+                            }
+                        });
+                    }
+                }
             }
         }
 
-        return uniqueRoutes;
+        return routes;
     }
 };
