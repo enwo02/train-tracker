@@ -173,13 +173,18 @@ const App = {
 
     /**
      * Collapse raw OJP trips into a minimal set of user-facing options.
+     *
      * Strategy:
      * - Group by (from, to).
-     * - Within each group:
-     *   - Prefer variants that have a `via` label; if any exist, drop all
-     *     routes without `via` for that (from, to) pair.
-     *   - Then keep only the first route for each distinct `via` value
-     *     (so you get at most one "via Liestal", one "via Rheinfelden", etc.).
+     * - Within each group, compare paths using a coarse bounding box so that
+     *   trips following the same corridor collapse into one option while
+     *   genuinely different paths remain separate.
+     *   - bboxKey = rounded min/max lat/lon of the geometry.
+     *   - For a given bboxKey, if there are multiple routes:
+     *     - Prefer the variant that has a `via` label, otherwise keep the first.
+     *
+     * This preserves all genuinely different paths while avoiding duplicates
+     * when the corridor is the same but departure times or service ids differ.
      */
     dedupeRoutesForUi(routes) {
         const groups = new Map(); // key: "from|to" -> array of routes
@@ -196,22 +201,47 @@ const App = {
         const result = [];
 
         groups.forEach(groupRoutes => {
-            const hasVia = groupRoutes.some(r => (r.properties && r.properties.via));
+            const byBBox = new Map(); // bboxKey -> best route
 
-            // If we have any via-labelled routes, drop the ones without via
-            let candidates = hasVia
-                ? groupRoutes.filter(r => r.properties && r.properties.via)
-                : groupRoutes;
+            const getBBoxKey = (coords) => {
+                if (!coords || coords.length === 0) return '';
+                let minLat = Infinity, maxLat = -Infinity;
+                let minLon = Infinity, maxLon = -Infinity;
 
-            const seenVia = new Set();
+                coords.forEach(([lon, lat]) => {
+                    if (lat < minLat) minLat = lat;
+                    if (lat > maxLat) maxLat = lat;
+                    if (lon < minLon) minLon = lon;
+                    if (lon > maxLon) maxLon = lon;
+                });
 
-            for (const r of candidates) {
-                const via = (r.properties && r.properties.via) || '';
-                const viaKey = via || '__NO_VIA__';
-                if (seenVia.has(viaKey)) continue;
-                seenVia.add(viaKey);
-                result.push(r);
-            }
+                // Round to ~1 km resolution
+                const r = (v) => v.toFixed(2);
+                return `${r(minLat)}|${r(minLon)}|${r(maxLat)}|${r(maxLon)}`;
+            };
+
+            groupRoutes.forEach(route => {
+                const coords = route.geometry && route.geometry.coordinates;
+                if (!coords || coords.length < 2) return;
+
+                const bboxKey = getBBoxKey(coords);
+                const existing = byBBox.get(bboxKey);
+
+                if (!existing) {
+                    byBBox.set(bboxKey, route);
+                    return;
+                }
+
+                const hasViaExisting = !!(existing.properties && existing.properties.via);
+                const hasViaNew = !!(route.properties && route.properties.via);
+
+                // Prefer a route that has a via label for this corridor.
+                if (!hasViaExisting && hasViaNew) {
+                    byBBox.set(bboxKey, route);
+                }
+            });
+
+            byBBox.forEach(route => result.push(route));
         });
 
         return result;
@@ -328,12 +358,21 @@ const App = {
                 const item = document.createElement('div');
                 item.className = 'line-item';
 
-                const props = line.properties;
+                const props = line.properties || {};
+                const title = props.from && props.to ? `${props.from} ➔ ${props.to}` : (props.name || '');
+                const dirMeta = props.directionTo && props.directionTo !== props.to
+                    ? `<div class="line-meta">Dir: ${props.from} ➔ ${props.directionTo}</div>`
+                    : '';
+                const viaMeta = props.via ? `<div class="line-meta">Via: ${props.via}</div>` : '';
+                const hasOperator = props.operator && !/^\d+$/.test(String(props.operator).trim());
+                const operatorMeta = hasOperator ? `<div class="line-meta">Operator: ${String(props.operator).trim()}</div>` : '';
 
                 item.innerHTML = `
                     <div class="line-info">
-                        <div class="line-name" title="${props.name}">${props.name}</div>
-                        <div class="line-meta">${props.network || 'Train Network'}</div>
+                        <div class="line-name" title="${title}">${title}</div>
+                        ${dirMeta}
+                        ${viaMeta}
+                        ${operatorMeta}
                     </div>
                     <button class="btn-icon" aria-label="Delete line" data-id="${line.id}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

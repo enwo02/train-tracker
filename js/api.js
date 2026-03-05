@@ -176,6 +176,27 @@ const API = {
 
         const tripResults = getElements(xmlDoc, 'TripResult');
 
+        // Build a normalized geometry signature for a path. We sample along the
+        // coordinates and round to ~1 km, which smooths out tiny variations
+        // (e.g. different platforms or track alignment) but still
+        // distinguishes genuinely different corridors.
+        const buildShapeKey = (coords) => {
+            if (!coords || coords.length === 0) return '';
+            const points = [];
+            const sampleCount = 20;
+            const step = Math.max(1, Math.floor(coords.length / sampleCount));
+
+            for (let i = 0; i < coords.length; i += step) {
+                const [lon, lat] = coords[i];
+                points.push(`${lon.toFixed(2)},${lat.toFixed(2)}`);
+            }
+            // Ensure we always include the last point
+            const [lonLast, latLast] = coords[coords.length - 1];
+            points.push(`${lonLast.toFixed(2)},${latLast.toFixed(2)}`);
+
+            return points.join('|');
+        };
+
         // Helper to extract a human-friendly service name (e.g. "IC 3", "IR 36").
         // We explicitly avoid low-level technical IDs like "ojp:91036:A".
         const getServiceName = (serviceEl) => {
@@ -324,19 +345,7 @@ const API = {
             if (tripCoordinates.length > 1 && overallOrigin && overallDestination) {
                 const viaArray = Array.from(viaStops);
 
-                // Build a lightweight geometry-based key so that trips following
-                // the same physical path collapse into a single option, even if
-                // intermediate-stop metadata differs (e.g. one trip has no "via"
-                // but shares the exact same corridor as another).
-                const firstIdx = 0;
-                const midIdx = Math.floor(tripCoordinates.length / 2);
-                const lastIdx = tripCoordinates.length - 1;
-                const pick = (idx) => {
-                    const [lon, lat] = tripCoordinates[idx];
-                    // round to ~100m precision which is enough to distinguish corridors
-                    return `${lon.toFixed(3)},${lat.toFixed(3)}`;
-                };
-                const shapeKey = `${pick(firstIdx)}|${pick(midIdx)}|${pick(lastIdx)}`;
+                const shapeKey = buildShapeKey(tripCoordinates);
 
                 const primaryVia = viaArray[0] || '';
                 const pathKey = `${overallOrigin}|${overallDestination}|${shapeKey}`;
@@ -362,6 +371,7 @@ const API = {
                         to: overallDestination,
                         departureTime: departureTime,
                         via: primaryVia,
+                        shapeKey: shapeKey,
                         directionTo: directionTo
                     },
                     geometry: {
