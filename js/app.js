@@ -15,6 +15,8 @@ const App = {
         autocompleteStart: document.getElementById('autocomplete-start'),
         autocompleteEnd: document.getElementById('autocomplete-end'),
         btnSearchRoute: document.getElementById('btn-search-route'),
+        btnSwapStations: document.getElementById('btn-swap-stations'),
+        toggleRailwayLines: document.getElementById('toggle-railway-lines'),
 
         loadingIndicator: document.getElementById('loading-indicator'),
         loadingText: document.getElementById('loading-text'),
@@ -57,6 +59,19 @@ const App = {
 
         // Search Route Button
         this.ui.btnSearchRoute.addEventListener('click', () => this.searchRoute());
+
+        // Swap A/B stations
+        if (this.ui.btnSwapStations) {
+            this.ui.btnSwapStations.addEventListener('click', () => this.swapStations());
+        }
+
+        // Toggle OpenRailwayMap infrastructure overlay
+        if (this.ui.toggleRailwayLines) {
+            this.ui.toggleRailwayLines.addEventListener('change', (e) => {
+                const show = !!e.target.checked;
+                MapManager.setRailwayOverlayVisible(show);
+            });
+        }
     },
 
     handleInput(value, type) {
@@ -396,8 +411,9 @@ const App = {
                     const temp = L.geoJSON(line);
                     try {
                         MapManager.map.fitBounds(temp.getBounds(), {
-                            paddingTopLeft: [50, 50],
-                            paddingBottomRight: [450, 50],
+                            // Sidebar is on the left, so reserve padding there
+                            paddingTopLeft: [450, 50],
+                            paddingBottomRight: [50, 50],
                             maxZoom: 12
                         });
                     } catch (e) { }
@@ -409,6 +425,32 @@ const App = {
             this.ui.emptyState.style.display = 'block';
             this.ui.linesList.querySelectorAll('.line-item').forEach(item => item.remove());
         }
+    },
+
+    swapStations() {
+        const prevStartStation = this.state.startStation;
+        const prevEndStation = this.state.endStation;
+
+        // Swap state objects
+        this.state.startStation = prevEndStation;
+        this.state.endStation = prevStartStation;
+
+        // Swap input values (fall back to empty string if null)
+        const startName = this.state.startStation ? this.state.startStation.name : '';
+        const endName = this.state.endStation ? this.state.endStation.name : '';
+
+        this.ui.inputStart.value = startName;
+        this.ui.inputEnd.value = endName;
+
+        // Optionally, re-center the map on the new start station
+        if (this.state.startStation) {
+            MapManager.map.setView(
+                [this.state.startStation.lat, this.state.startStation.lon],
+                13
+            );
+        }
+
+        this.updateSearchBtnState();
     }
 };
 

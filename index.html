@@ -53,6 +53,9 @@
                         <ul id="autocomplete-start" class="autocomplete-list hidden"></ul>
                     </div>
                 </div>
+                <button id="btn-swap-stations" class="swap-button" aria-label="Swap start and end stations">
+                    ⇄
+                </button>
                 <div class="input-group">
                     <div class="input-icon">B</div>
                     <div class="autocomplete-wrapper">
@@ -61,6 +64,10 @@
                     </div>
                 </div>
                 <button id="btn-search-route" class="btn btn-primary w-full mt-12" disabled>Search Route</button>
+                <label class="map-toggle">
+                    <input type="checkbox" id="toggle-railway-lines">
+                    <span class="map-toggle-label">Show OpenRailwayMap train lines</span>
+                </label>
             </div>
 
             <div id="loading-indicator" class="hidden">

@@ -2,6 +2,8 @@ const MapManager = {
     map: null,
     tempLayer: null,
     savedLayers: null,
+    railwayOverlay: null,
+    railwayOverlayVisible: false,
 
     init() {
         // Initialize the map, centered on Switzerland
@@ -25,7 +27,16 @@ const MapManager = {
             attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>'
         }).addTo(this.map);
 
-        // Removed OpenRailwayMap overlay to leave a clean CartoDB Positron base.
+        // 3. Prepare OpenRailwayMap overlay (infrastructure lines). This is toggled via UI.
+        this.railwayOverlay = L.tileLayer(
+            'https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png',
+            {
+                maxZoom: 19,
+                opacity: 0.8,
+                attribution:
+                    '&copy; <a href="https://www.openrailwaymap.org/">OpenRailwayMap</a> contributors'
+            }
+        );
 
         // Reposition zoom control
         L.control.zoom({
@@ -64,8 +75,9 @@ const MapManager = {
         // Fit map to show the line
         try {
             this.map.fitBounds(this.tempLayer.getBounds(), {
-                paddingTopLeft: [50, 50],
-                paddingBottomRight: [450, 50]
+                // Sidebar is on the left, so reserve padding there
+                paddingTopLeft: [450, 50],
+                paddingBottomRight: [50, 50]
             });
         } catch (e) {
             console.warn("Could not fit bounds for temp layer", e);
@@ -88,5 +100,19 @@ const MapManager = {
                 }
             }).addTo(this.savedLayers);
         });
+    },
+
+    setRailwayOverlayVisible(visible) {
+        this.railwayOverlayVisible = visible;
+
+        if (!this.railwayOverlay) return;
+
+        if (visible) {
+            if (!this.map.hasLayer(this.railwayOverlay)) {
+                this.railwayOverlay.addTo(this.map);
+            }
+        } else if (this.map.hasLayer(this.railwayOverlay)) {
+            this.map.removeLayer(this.railwayOverlay);
+        }
     }
 };

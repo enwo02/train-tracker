@@ -65,7 +65,7 @@ body {
 
 /* Adjust zoom controls */
 .leaflet-control-zoom {
-    margin-right: calc(var(--sidebar-width) + 20px) !important;
+    margin-left: calc(var(--sidebar-width) + 20px) !important;
     border: none !important;
     box-shadow: var(--shadow-soft) !important;
     border-radius: 8px !important;
@@ -94,7 +94,7 @@ body {
 #sidebar {
     position: absolute;
     top: 20px;
-    right: 20px;
+    left: 20px;
     bottom: 20px;
     width: var(--sidebar-width);
     border-radius: var(--border-radius);
@@ -147,6 +147,27 @@ header p {
     align-items: center;
     gap: 12px;
     position: relative;
+}
+
+.swap-button {
+    align-self: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: var(--bg-input);
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--trans-fast);
+    font-size: 16px;
+}
+
+.swap-button:hover {
+    background: white;
+    box-shadow: var(--shadow-soft);
 }
 
 .input-icon {
@@ -260,6 +281,24 @@ input[type="text"]:focus {
 
 .btn-outline:hover {
     border-color: var(--text-muted);
+}
+
+.map-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 8px;
+}
+
+.map-toggle input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+}
+
+.map-toggle-label {
+    cursor: pointer;
 }
 
 /* Section Headers */
