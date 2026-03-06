@@ -1,4 +1,16 @@
 const STORAGE_KEY = 'trainTrackerLines';
+const STORAGE_UPDATED_AT_KEY = 'trainTrackerLinesUpdatedAt';
+
+function notifyLinesChanged() {
+    try {
+        localStorage.setItem(STORAGE_UPDATED_AT_KEY, String(Date.now()));
+    } catch (e) { /* ignore */ }
+
+    try {
+        // Used by Drive sync (and potentially other integrations)
+        window.dispatchEvent(new CustomEvent('trainTrackerLinesChanged'));
+    } catch (e) { /* ignore */ }
+}
 
 const Storage = {
     getLines() {
@@ -17,6 +29,7 @@ const Storage = {
         if (!lines.some(l => l.id === line.id)) {
             lines.unshift(line);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
+            notifyLinesChanged();
             return true;
         }
         return false;
@@ -26,6 +39,7 @@ const Storage = {
         let lines = this.getLines();
         lines = lines.filter(l => l.id !== lineId);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
+        notifyLinesChanged();
     },
 
     /**
@@ -35,6 +49,7 @@ const Storage = {
         try {
             const safeLines = Array.isArray(lines) ? lines : [];
             localStorage.setItem(STORAGE_KEY, JSON.stringify(safeLines));
+            notifyLinesChanged();
         } catch (e) {
             console.error("Error writing routes to local storage", e);
         }
@@ -77,6 +92,7 @@ const Storage = {
 
         const merged = Array.from(byId.values());
         this.setLines(merged);
+        // notifyLinesChanged() is called by setLines()
 
         return {
             added,

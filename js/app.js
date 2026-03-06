@@ -938,4 +938,10 @@ const App = {
 
 document.addEventListener('DOMContentLoaded', () => {
     App.init();
+
+    // When routes change from external integrations (e.g. Google Drive sync),
+    // refresh the UI so new lines appear without requiring a manual reload.
+    window.addEventListener('trainTrackerLinesChanged', () => {
+        App.updateSavedUI();
+    });
 });

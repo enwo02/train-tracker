@@ -427,11 +427,61 @@ input[type="text"]:focus {
     font-weight: 500;
 }
 
-.saved-actions {
+.badge-success {
+    background: #1f8f4a; /* accessible green */
+    font-weight: 600;
+}
+
+.badge-danger {
+    background: #c62828; /* accessible red */
+    font-weight: 600;
+}
+
+.drive-status-hidden {
+    display: none;
+}
+
+.saved-toolbar {
     display: flex;
-    justify-content: flex-end;
+    flex-direction: row;
+    align-items: center;
     gap: 8px;
     padding: 0 24px 8px;
+}
+
+.saved-toolbar-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+}
+
+.btn-sync {
+    min-width: 0;
+}
+
+.btn-sync.btn-sync-connected {
+    border-color: #1f8f4a;
+    color: #1f8f4a;
+}
+
+.btn-sync.btn-sync-connected:hover {
+    border-color: #166334;
+    color: #166334;
+}
+
+.btn-sync.btn-sync-error {
+    border-color: #c62828;
+    color: #c62828;
+}
+
+.saved-actions {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 8px;
+    padding: 0 24px 12px;
 }
 
 /* Content Areas */
@@ -441,6 +491,10 @@ input[type="text"]:focus {
     flex-direction: column;
     flex-grow: 1;
     overflow: hidden;
+}
+
+#data-management-container {
+    border-bottom: 1px solid var(--border);
 }
 
 #lines-list,

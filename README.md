@@ -13,6 +13,7 @@ A browser-based interactive map application for visualising and saving your rail
 - **Interactive map** – built with [Leaflet.js](https://leafletjs.com/) on a clean CartoDB Positron base layer with a subtle [OpenRailwayMap](https://www.openrailwaymap.org/) overlay
 - **Route preview** – hover over a search result to preview the full journey geometry on the map
 - **Persistent storage** – saved routes are stored in `localStorage` so they survive page reloads
+- **Optional Google Drive sync** – connect Drive to automatically sync saved routes across browsers/devices (works on GitHub Pages)
 - **SBB-inspired design** – clean, minimal UI using the Swiss Federal Railways red colour scheme
 - **Responsive** – adapts to mobile screen sizes
 
@@ -28,6 +29,27 @@ A browser-based interactive map application for visualising and saving your rail
 | Persistence | Browser `localStorage` |
 
 No build step, no dependencies to install – the app runs entirely in the browser.
+
+## Optional: Google Drive sync (cross-device)
+
+This project can optionally sync your saved routes to **your own Google Drive** (in the hidden `appDataFolder`) so the same routes appear on all your devices.
+
+- **No backend required**: works on GitHub Pages.
+- **No app storage cost**: uses the user's existing Google Drive storage.
+- **Privacy**: the file is stored in `appDataFolder` (not shown in normal Drive UI).
+
+### Setup
+
+1. Create an OAuth client id (Web) in Google Cloud Console and enable the Google Drive API.
+2. Add your origins to the OAuth client:
+   - `http://localhost:8080` (or whatever port you use)
+   - your GitHub Pages origin (e.g. `https://<user>.github.io`)
+3. Put your OAuth client id in `js/drive-sync.js` (constant `DEFAULT_CLIENT_ID`), or set it via:
+   - `window.TRAIN_TRACKER_GOOGLE_CLIENT_ID = '...';` (e.g. in `js/config.local.js`)
+
+### Usage
+
+Click **Connect Drive** in the sidebar, accept the Google consent prompt, then click **Sync** as needed.
 
 ## Getting started
 

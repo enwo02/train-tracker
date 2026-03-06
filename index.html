@@ -93,6 +93,29 @@
                 </div>
             </div>
 
+            <!-- Data management: sync / backup / import -->
+            <div id="data-management-container">
+                <div class="section-header">
+                    <h2>Data & Sync</h2>
+                </div>
+                <div class="saved-toolbar">
+                    <!-- Status pill is visually hidden but still used for tooltip / internal state -->
+                    <span id="drive-sync-status" class="badge badge-muted drive-status-hidden"
+                        title="Google Drive sync status">Not connected</span>
+                    <button id="btn-connect-drive" class="btn btn-outline btn-small btn-sync" type="button"
+                        title="Connect and sync with Google Drive">
+                        Sync Drive
+                    </button>
+                    <button id="btn-export-routes" class="btn btn-outline btn-small" type="button">
+                        Export
+                    </button>
+                    <button id="btn-import-routes" class="btn btn-outline btn-small" type="button">
+                        Import
+                    </button>
+                    <input id="input-import-file" type="file" accept="application/json" class="hidden">
+                </div>
+            </div>
+
             <div id="saved-lines-container">
                 <div class="section-header">
                     <h2>Your Saved Routes</h2>
@@ -103,16 +126,9 @@
                 </div>
 
                 <div class="saved-actions">
-                    <button id="btn-export-routes" class="btn btn-outline btn-small" type="button">
-                        Export
-                    </button>
-                    <button id="btn-import-routes" class="btn btn-outline btn-small" type="button">
-                        Import
-                    </button>
                     <button id="btn-merge-routes" class="btn btn-outline btn-small" type="button">
                         Merge selected
                     </button>
-                    <input id="input-import-file" type="file" accept="application/json" class="hidden">
                 </div>
 
                 <div id="lines-list">
@@ -132,12 +148,16 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
+    <!-- Google Identity Services (for Google Drive sync) -->
+    <script src="https://accounts.google.com/gsi/client"></script>
+
     <!-- Local config (gitignored, provides API token for development) -->
     <script src="js/config.local.js" onerror=""></script>
 
     <!-- App Scripts -->
     <script src="js/SmoothWheelZoom.js"></script>
     <script src="js/storage.js?v=10"></script>
+    <script src="js/drive-sync.js?v=10"></script>
     <script src="js/api.js?v=10"></script>
     <script src="js/map.js?v=10"></script>
     <script src="js/app.js?v=10"></script>
