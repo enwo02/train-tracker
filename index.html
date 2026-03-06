@@ -48,36 +48,31 @@
             </header>
 
             <div class="route-search-container">
-                <div class="input-group">
-                    <div class="input-icon">A</div>
-                    <div class="autocomplete-wrapper">
-                        <input type="text" id="input-start" placeholder="Start Station (e.g., Zürich HB)"
-                            autocomplete="off">
-                        <ul id="autocomplete-start" class="autocomplete-list hidden"></ul>
+                <h3 class="section-title">Swiss routes</h3>
+                <div class="stations-row">
+                    <div class="input-group">
+                        <div class="autocomplete-wrapper">
+                            <input type="text" id="input-start" placeholder="Start"
+                                autocomplete="off">
+                            <ul id="autocomplete-start" class="autocomplete-list hidden"></ul>
+                        </div>
+                    </div>
+                    <button id="btn-swap-stations" class="swap-button" aria-label="Swap start and end stations">
+                        ⇄
+                    </button>
+                    <div class="input-group">
+                        <div class="autocomplete-wrapper">
+                            <input type="text" id="input-end" placeholder="End" autocomplete="off">
+                            <ul id="autocomplete-end" class="autocomplete-list hidden"></ul>
+                        </div>
                     </div>
                 </div>
-                <button id="btn-swap-stations" class="swap-button" aria-label="Swap start and end stations">
-                    ⇄
+                <button id="btn-search-route" class="btn btn-primary w-full mt-8" disabled>Search Route</button>
+
+                <h3 class="section-title mt-16">International routes</h3>
+                <button id="btn-draw-route" class="btn btn-outline w-full mt-8">
+                    Draw custom route
                 </button>
-                <div class="input-group">
-                    <div class="input-icon">B</div>
-                    <div class="autocomplete-wrapper">
-                        <input type="text" id="input-end" placeholder="End Station (e.g., Bern)" autocomplete="off">
-                        <ul id="autocomplete-end" class="autocomplete-list hidden"></ul>
-                    </div>
-                </div>
-                <button id="btn-search-route" class="btn btn-primary w-full mt-12" disabled>Search Route</button>
-                <label class="map-toggle">
-                    <input type="checkbox" id="toggle-railway-lines">
-                    <span class="map-toggle-label">Show OpenRailwayMap train lines</span>
-                </label>
-                <button id="btn-draw-route" class="btn btn-outline w-full mt-12">
-                    Draw custom route on map (worldwide)
-                </button>
-                <p class="help-text">
-                    Station search uses Swiss railway data only. For journeys outside Switzerland, use
-                    <strong>Draw custom route on map (worldwide)</strong>.
-                </p>
                 <p id="draw-hint" class="hidden">
                     Click along the railway line on the map to trace your journey. Click
                     <strong>Finish drawing</strong> to save, or press <strong>Esc</strong> to cancel.

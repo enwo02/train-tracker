@@ -38,20 +38,24 @@ const MapManager = {
             smoothSensitivity: 5,   // Higher is faster
         }).setView([46.8182, 8.2275], 8);
 
-        // 1. Add CartoDB Positron 'no labels' base layer
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
-            maxZoom: 19,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        }).addTo(this.map);
+        // 1. Base map layers (user picks one)
+        const baseMapLight = L.layerGroup([
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            }),
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+                maxZoom: 20,
+                attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>'
+            })
+        ]).addTo(this.map);
 
-        // 2. Add CartoDB Positron labels. This restores the clean SBB-like font.
-        // Note: This layer will unfortunately bring back region names, but it resolves the ugly font and white flashing.
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
-            maxZoom: 20,
-            attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>'
-        }).addTo(this.map);
+        const baseMapTerrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+            maxZoom: 17,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM &copy; <a href="https://opentopomap.org/">OpenTopoMap</a> (CC-BY-SA)'
+        });
 
-        // 3. Prepare OpenRailwayMap overlay (infrastructure lines). This is toggled via UI.
+        // 2. OpenRailwayMap overlay (toggleable via layer control)
         this.railwayOverlay = L.tileLayer(
             'https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png',
             {
@@ -61,6 +65,16 @@ const MapManager = {
                     '&copy; <a href="https://www.openrailwaymap.org/">OpenRailwayMap</a> contributors'
             }
         );
+
+        // 3. Layer control: base map (radio) + overlay (checkbox), always expanded
+        L.control.layers(
+            {
+                'Map': baseMapLight,
+                'Terrain': baseMapTerrain
+            },
+            { 'Railway lines': this.railwayOverlay },
+            { position: 'topright', collapsed: false }
+        ).addTo(this.map);
 
         // Reposition zoom control
         L.control.zoom({

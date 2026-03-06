@@ -82,6 +82,79 @@ body {
     background: #F8F8F8 !important;
 }
 
+/* Leaflet layer selector */
+.leaflet-control-layers {
+    border: none !important;
+    border-radius: 10px !important;
+    box-shadow: var(--shadow-soft) !important;
+    overflow: hidden;
+    font-family: inherit;
+}
+
+/* Collapsed state: make it look like a button (like zoom) */
+.leaflet-control-layers .leaflet-control-layers-toggle {
+    width: 40px !important;
+    height: 40px !important;
+    background-color: #fff !important;
+    border: none !important;
+    background-size: 18px 18px !important;
+    opacity: 1 !important;
+}
+
+.leaflet-control-layers .leaflet-control-layers-toggle:hover {
+    background-color: #F8F8F8 !important;
+}
+
+/* Expanded panel */
+.leaflet-control-layers-expanded {
+    padding: 10px 10px 8px !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    color: var(--text-main) !important;
+    min-width: 190px;
+}
+
+.leaflet-control-layers-expanded .leaflet-control-layers-list {
+    margin: 0 !important;
+}
+
+.leaflet-control-layers-expanded .leaflet-control-layers-separator {
+    border-top: 1px solid var(--border) !important;
+    margin: 8px 0 !important;
+}
+
+/* Labels + inputs */
+.leaflet-control-layers label {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+    user-select: none;
+}
+
+.leaflet-control-layers label:hover {
+    background: var(--bg-input);
+}
+
+.leaflet-control-layers input[type="radio"],
+.leaflet-control-layers input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    margin: 0 !important;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.leaflet-control-layers label span {
+    line-height: 1.2;
+}
+
 /* Glassmorphism utility */
 .glass-panel {
     background: var(--bg-panel);
@@ -142,6 +215,29 @@ header p {
     gap: 12px;
 }
 
+.section-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.mt-8 { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+
+.stations-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.stations-row .input-group {
+    flex: 1;
+    min-width: 0;
+}
+
 .input-group {
     display: flex;
     align-items: center;
@@ -150,7 +246,7 @@ header p {
 }
 
 .swap-button {
-    align-self: center;
+    flex-shrink: 0;
     width: 32px;
     height: 32px;
     border-radius: 50%;
@@ -288,32 +384,7 @@ input[type="text"]:focus {
     font-size: 12px;
 }
 
-.map-toggle {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--text-muted);
-    margin-top: 8px;
-}
-
-.map-toggle input[type="checkbox"] {
-    width: 14px;
-    height: 14px;
-}
-
-.map-toggle-label {
-    cursor: pointer;
-}
-
 #draw-hint {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-top: 4px;
-    line-height: 1.4;
-}
-
-.help-text {
     font-size: 12px;
     color: var(--text-muted);
     margin-top: 4px;
@@ -428,6 +499,19 @@ input[type="text"]:focus {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
+.line-select {
+    flex-shrink: 0;
+    margin-right: 14px;
+    display: flex;
+    align-items: center;
+}
+
+.line-select-checkbox {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
 .line-info {
     display: flex;
     flex-direction: column;
@@ -435,6 +519,7 @@ input[type="text"]:focus {
     flex-grow: 1;
     overflow: hidden;
     padding-right: 12px;
+    min-width: 0;
 }
 
 .line-actions {

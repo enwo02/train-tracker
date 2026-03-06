@@ -17,7 +17,6 @@ const App = {
         autocompleteEnd: document.getElementById('autocomplete-end'),
         btnSearchRoute: document.getElementById('btn-search-route'),
         btnSwapStations: document.getElementById('btn-swap-stations'),
-        toggleRailwayLines: document.getElementById('toggle-railway-lines'),
         btnDrawRoute: document.getElementById('btn-draw-route'),
         drawHint: document.getElementById('draw-hint'),
 
@@ -106,14 +105,6 @@ const App = {
         // Swap A/B stations
         if (this.ui.btnSwapStations) {
             this.ui.btnSwapStations.addEventListener('click', () => this.swapStations());
-        }
-
-        // Toggle OpenRailwayMap infrastructure overlay
-        if (this.ui.toggleRailwayLines) {
-            this.ui.toggleRailwayLines.addEventListener('change', (e) => {
-                const show = !!e.target.checked;
-                MapManager.setRailwayOverlayVisible(show);
-            });
         }
 
         // Manual draw button for custom routes
