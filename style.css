@@ -407,6 +407,12 @@ input[type="text"]:focus {
     font-weight: 600;
 }
 
+.header-badges {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
 .badge {
     background: var(--text-main);
     color: white;
@@ -414,6 +420,11 @@ input[type="text"]:focus {
     font-weight: 600;
     padding: 2px 8px;
     border-radius: 12px;
+}
+
+.badge-muted {
+    background: var(--text-muted);
+    font-weight: 500;
 }
 
 .saved-actions {

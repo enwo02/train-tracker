@@ -36,6 +36,8 @@ const App = {
         inputImportFile: document.getElementById('input-import-file'),
         btnMergeRoutes: document.getElementById('btn-merge-routes'),
 
+        totalKm: document.getElementById('total-km'),
+
         toast: document.getElementById('toast'),
         toastMessage: document.getElementById('toast-message')
     },
@@ -599,6 +601,31 @@ const App = {
 
         // Update Sidebar Count
         this.ui.lineCount.textContent = lines.length;
+
+        // Compute and display total track kilometers
+        let totalKm = 0;
+        lines.forEach(line => {
+            const geom = line.geometry;
+            if (!geom || !Array.isArray(geom.coordinates)) return;
+            if (geom.type === 'LineString') {
+                totalKm += this.computeRouteLengthKm(geom.coordinates);
+            } else if (geom.type === 'MultiLineString') {
+                geom.coordinates.forEach(part => {
+                    if (Array.isArray(part) && part.length >= 2) {
+                        totalKm += this.computeRouteLengthKm(part);
+                    }
+                });
+            }
+        });
+
+        if (this.ui.totalKm) {
+            if (totalKm > 0) {
+                this.ui.totalKm.textContent = `${Math.round(totalKm)} km`;
+                this.ui.totalKm.classList.remove('hidden');
+            } else {
+                this.ui.totalKm.classList.add('hidden');
+            }
+        }
 
         // Update List View
         if (lines.length > 0) {
