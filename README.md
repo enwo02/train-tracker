@@ -62,6 +62,49 @@ Then open `http://localhost:8080` in your browser.
 
 Install the [Live Server](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer) extension and click **Go Live** in the status bar.
 
+### 3. (Optional) Build local railway tiles from OSM extracts
+
+The manual “draw route on map” feature snaps your clicks to real railway track geometry.  
+For this it uses static **1° × 1° GeoJSON tiles** in `data/tiles/`, which you can build from
+your own `.osm.pbf` extracts.
+
+Requirements:
+
+- `osmium` CLI (osmium-tool) installed and on your `PATH`  
+  - On macOS: `brew install osmium-tool`
+- Node.js (used to run the helper script)
+
+Steps:
+
+1. **Download OSM PBF extracts** (for the regions you care about) from a provider such as [Geofabrik](https://download.geofabrik.de/).
+2. **Copy the `.osm.pbf` files into the `data/` folder** of this project, for example:
+
+   - `data/switzerland.osm.pbf`
+   - `data/austria.osm.pbf`
+
+3. **Run the tile build script** from the project root:
+
+   ```bash
+   node scripts/build-rail-tiles.js
+   ```
+
+   The script will, for each `*.osm.pbf` in `data/`:
+
+   - filter only `railway=rail|light_rail|subway|tram` ways using `osmium tags-filter`
+   - export them as GeoJSON linestrings (stored in `data/_tmp_rail_build/`)
+   - stream the GeoJSON and aggregate into 1° × 1° tiles under `data/tiles/<lat>_<lon>.geojson`
+
+   During tiling it prints progress (feature count, MB read, and percentage). Tiles are written incrementally as `*.geojson.partial` and renamed to `*.geojson` when finished, so you can see output appearing while it runs. Large extracts (e.g. Europe) can take a long time; re-runs skip steps that are already up to date (intermediate files in `data/_tmp_rail_build/` are kept by default).
+
+   **Options:**
+
+   - `--fresh` — Clear `data/_tmp_rail_build/` and rebuild all steps from the PBFs.
+   - `--clean` — Remove `data/_tmp_rail_build/` when finished (default: keep it for incremental runs).
+
+4. Commit `data/tiles/*.geojson` if you want them to be available when deploying
+   (e.g. GitHub Pages). The app will automatically load whatever tiles exist for
+   the current map view and use them for snapping manual routes to the tracks.
+
 ## Usage
 
 1. Type a **start station** name in the first input field (e.g. *Zürich HB*) and select a result from the autocomplete list.

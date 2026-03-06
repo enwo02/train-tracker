@@ -1,0 +1,3 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[38.3525134,36.9004252],[38.3539828,36.900504]]},"properties":{"disused:railway":"rail","electrified":"no","gauge":"1435","railway":"rail","service":"siding","tracks":"1"}}
+]}

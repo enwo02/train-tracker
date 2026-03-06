@@ -1,0 +1,10 @@
+.DS_Store
+
+# Local OSM extracts (too large to commit)
+data/*.osm.pbf
+
+# Temporary rail tile build artifacts
+data/_tmp_rail_build/
+
+# In-progress tile outputs (script renames to .geojson when complete)
+data/tiles/*.geojson.partial

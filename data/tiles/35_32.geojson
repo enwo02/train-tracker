@@ -1,0 +1,4 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[32.8938074,35.0414185],[32.8936672,35.04168],[32.8936221,35.0417642],[32.8935965,35.0418119],[32.8933936,35.0420328]]},"properties":{"gauge":"762","railway":"rail","railway:preserved":"yes"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[32.8935965,35.0418119],[32.8935799,35.0419076],[32.8935825,35.0419777],[32.8935821,35.0420249]]},"properties":{"gauge":"762","railway":"rail","railway:preserved":"yes"}}
+]}

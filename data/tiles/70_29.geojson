@@ -1,0 +1,4 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[29.1017613,70.85787],[29.1020577,70.8580617]]},"properties":{"electrified":"no","gauge":"1435","railway":"rail","service":"yard","usage":"industrial"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[29.8185387,70.0918818],[29.8178776,70.0921841]]},"properties":{"name":"Løpende elg","railway":"rail","source":"Norway Orthophoto"}}
+]}
