@@ -1,5 +1,5 @@
 const OJP_URL = 'https://api.opentransportdata.swiss/ojp20';
-const OJP_TOKEN = 'eyJvcmciOiI2NDA2NTFhNTIyZmEwNTAwMDEyOWJiZTEiLCJpZCI6ImYxNDgyZGIxZDkxNjQ2NTFiNGIwMGMxYzdhNDQ5ZGFlIiwiaCI6Im11cm11cjEyOCJ9';
+const OJP_TOKEN = window.__LOCAL_CONFIG__?.OJP_TOKEN || '__OJP_TOKEN__';
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
 const API = {

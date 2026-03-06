@@ -1,5 +1,8 @@
 .DS_Store
 
+# Local config with API tokens (not committed)
+js/config.local.js
+
 # Local OSM extracts (too large to commit)
 data/*.osm.pbf
 
