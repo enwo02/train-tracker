@@ -1,0 +1,5 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[75.3380519,67.7914175],[75.3371272,67.7918049],[75.3362903,67.7920902],[75.3155872,67.7991412],[75.3141754,67.7996229],[75.3133223,67.7998521]]},"properties":{"railway":"rail","service":"siding"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[75.3210817,67.8011567],[75.3217934,67.8014566],[75.3241715,67.8022738]]},"properties":{"railway":"rail","service":"spur"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[75.3313541,67.795292],[75.3258988,67.7972261],[75.3255312,67.7973828],[75.3252144,67.7975202],[75.3246904,67.7976872]]},"properties":{"railway":"rail","service":"spur"}}
+]}

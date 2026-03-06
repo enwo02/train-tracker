@@ -1,0 +1,3 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[27.5931503,-30.9679348],[27.5933552,-30.9680523]]},"properties":{"electrified":"no","gauge":"1067","plinth":"yes","railway":"rail"}}
+]}

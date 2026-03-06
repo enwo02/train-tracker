@@ -1,0 +1,10 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[20.8241129,32.4856081],[20.8242182,32.4844511],[20.8242325,32.4842944]]},"properties":{"railway":"rail"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[20.8241374,32.4856185],[20.8242016,32.4849707],[20.8242298,32.4846859],[20.8242405,32.4845779],[20.8242785,32.4842906]]},"properties":{"railway":"rail"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[20.8233012,32.4852753],[20.8236941,32.4852831]]},"properties":{"railway":"rail"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[20.8233349,32.4850708],[20.823734,32.4850708]]},"properties":{"railway":"rail"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[20.8234025,32.484483],[20.8237954,32.4844804]]},"properties":{"railway":"rail"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[20.8241975,32.4853245],[20.8245783,32.4853321]]},"properties":{"railway":"rail"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[20.8242251,32.485107],[20.824572,32.4850967]]},"properties":{"railway":"rail"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[20.8242405,32.4845779],[20.8245413,32.4845633]]},"properties":{"railway":"rail"}}
+]}

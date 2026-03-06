@@ -1,0 +1,4 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[45.1748161,34.4948807],[45.174809,34.4948756],[45.1747988,34.4948832],[45.174811,34.4949041]]},"properties":{"railway":"rail"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[45.1746961,34.494662],[45.1746809,34.4946495],[45.1746626,34.4946319],[45.1746443,34.4946285],[45.174624,34.4946352]]},"properties":{"railway":"rail"}}
+]}

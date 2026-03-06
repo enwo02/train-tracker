@@ -1,0 +1,3 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[14.8959376,27.3231651],[14.9049713,27.3244424],[14.9154855,27.3480023],[14.9231245,27.3691562]]},"properties":{"name":"خط  افتراضي لتوزيع الكهرباء","railway":"tram"}}
+]}

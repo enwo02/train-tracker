@@ -1,0 +1,4 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[33.0591244,26.3624513],[33.0594083,26.3626456],[33.0595402,26.3627482],[33.059775,26.3629148]]},"properties":{"electrified":"no","gauge":"1435","railway":"rail","service":"siding","source":"Bing 2008/2010"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[33.0597172,26.3628312],[33.0591806,26.3624872],[33.0591244,26.3624513],[33.0575154,26.3614231],[33.0564063,26.3607216],[33.0555852,26.3601969]]},"properties":{"electrified":"no","gauge":"1435","railway":"rail","service":"siding","source":"Bing 2008/2010"}}
+]}

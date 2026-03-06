@@ -1,0 +1,5 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[46.0606778,37.0103729],[46.0599183,37.0101519],[46.0553265,37.0087823],[46.0388236,37.0040884],[46.0216306,36.9990451],[46.0165666,36.9976227],[46.0122107,36.9963717],[46.0100435,36.9959432],[46.0081123,36.9956347],[46.0056876,36.9954805],[46.0002783,36.9951123]]},"properties":{"electrified":"no","gauge":"1435","name":"راه‌آهن مراغه - ارومیه","name:en":"Maragheh-Urmia Railway","railway":"rail","usage":"main"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[46.0000679,36.9951001],[45.975907,36.9937002]]},"properties":{"electrified":"no","gauge":"1435","name":"راه‌آهن مراغه - ارومیه","name:en":"Maragheh-Urmia Railway","railway":"rail","usage":"main"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[46.0002783,36.9951123],[46.0000679,36.9951001]]},"properties":{"bridge":"yes","electrified":"no","gauge":"1435","layer":"1","name":"راه‌آهن مراغه - ارومیه","name:en":"Maragheh-Urmia Railway","railway":"rail","usage":"main"}}
+]}

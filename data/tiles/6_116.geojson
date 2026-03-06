@@ -1,0 +1,4 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[116.1107008,6.0829161],[116.1093662,6.0851281],[116.1090487,6.0856576]]},"properties":{"railway":"rail","service":"spur","usage":"marine"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[116.1106418,6.0828827],[116.109308,6.0850938],[116.1089897,6.0856242]]},"properties":{"railway":"rail","service":"spur","usage":"marine"}}
+]}

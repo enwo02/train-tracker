@@ -1,0 +1,3 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[9.7003161,7.2381511],[9.7004646,7.2381535],[9.7004695,7.2380061],[9.7003136,7.2380013],[9.7003161,7.2381511]]},"properties":{"railway":"rail"}}
+]}

@@ -1,0 +1,3 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[74.8381337,67.902871],[74.8368586,67.9030777],[74.8345728,67.9033919],[74.834066,67.903463],[74.8326332,67.9036148]]},"properties":{"electrified":"no","gauge":"1520","railway":"rail","service":"spur","source":"Bing"}}
+]}

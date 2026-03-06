@@ -1,0 +1,3 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[120.2334253,34.3000656],[120.2334736,34.3004689]]},"properties":{"bridge":"yes","layer":"1","railway":"rail","service":"spur"}}
+]}

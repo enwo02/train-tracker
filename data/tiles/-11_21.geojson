@@ -1,0 +1,3 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[21.9840964,-11.001219],[21.9880146,-10.9992221],[21.9896293,-10.9983796],[21.9921344,-10.9971105],[21.995286,-10.9954886],[21.9970107,-10.994625],[21.9979119,-10.9941037],[21.9986023,-10.9935819],[22.0347497,-10.9653442]]},"properties":{"electrified":"no","gauge":"1067","operator":"CFB","railway":"rail","source":"Yahoo","usage":"main"}}
+]}

@@ -1,0 +1,5 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[103.4371658,4.5746557],[103.4372213,4.5743933]]},"properties":{"electrified":"no","gauge":"1000","name":"Kerteh–Kuantan Port Railway Line","name:en":"Kerteh–Kuantan Port Railway Line","railway":"rail","service":"spur"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[103.4386421,4.5668761],[103.4386731,4.5665186],[103.439879,4.5608172],[103.4399931,4.5604855]]},"properties":{"gauge":"1000","name":"Kerteh–Kuantan Port Railway Line","name:en":"Kerteh–Kuantan Port Railway Line","railway":"rail","service":"spur"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[103.4400401,4.5602731],[103.4400133,4.5606228],[103.4388515,4.5661162],[103.438725,4.5664841]]},"properties":{"gauge":"1000","name":"Kerteh–Kuantan Port Railway Line","name:en":"Kerteh–Kuantan Port Railway Line","railway":"rail","service":"spur"}}
+]}

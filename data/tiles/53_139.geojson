@@ -1,0 +1,4 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[139.8966891,53.9421633],[139.8953479,53.9430726],[139.8950636,53.9433505],[139.8952085,53.9435336]]},"properties":{"railway":"light_rail"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[139.8932666,53.9435368],[139.8948598,53.9435052],[139.8952085,53.9435336],[139.895407,53.9435967]]},"properties":{"railway":"light_rail"}}
+]}

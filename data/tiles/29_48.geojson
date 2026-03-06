@@ -1,0 +1,4 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[48.0619189,29.2626138],[48.0664001,29.2631174],[48.0772513,29.2653912],[48.0807228,29.2663588]]},"properties":{"colour":"green","electrified":"rail","frequency":"50","gauge":"1435","layer":"-1","name":"Line 5","name:en":"Line 5","railway":"subway","ref":"Line 5","tunnel":"yes"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[48.0961548,29.2320354],[48.0973215,29.2279123],[48.1004702,29.2164867]]},"properties":{"colour":"black","construction":"subway","electrified":"rail","frequency":"50","gauge":"1435","layer":"-1","name":"Line 4","name:en":"Line 4","railway":"subway","ref":"Line 4","tunnel":"yes"}}
+]}
