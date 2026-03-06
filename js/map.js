@@ -19,6 +19,8 @@ const MapManager = {
     manualPreviewLayer: null,
     manualHoverMarker: null,
     lastPreviewTs: 0,
+    // Debug layer for visualizing all stored geometry points
+    debugPointsLayer: null,
 
     // Preloaded railway network from local GeoJSON tiles
     railNodes: [],
@@ -702,5 +704,120 @@ const MapManager = {
         if (this.map.doubleClickZoom && !this.map.doubleClickZoom.enabled()) {
             this.map.doubleClickZoom.enable();
         }
+    },
+
+    /**
+     * Remove any debug points layer from the map.
+     */
+    clearDebugPoints() {
+        if (this.debugPointsLayer && this.map) {
+            this.map.removeLayer(this.debugPointsLayer);
+            this.debugPointsLayer = null;
+        }
+    },
+
+    /**
+     * Show all individual geometry points from the given lines array
+     * as small markers on the map. Intended for debugging the density
+     * and volume of stored route data.
+     *
+     * `lines` is expected to be the array returned from Storage.getLines().
+     */
+    showAllLinePoints(lines, {
+        color = '#0070f3',
+        radius = 2,
+        opacity = 0.7,
+        maxPoints = 50000
+    } = {}) {
+        if (!this.map || !Array.isArray(lines)) return;
+
+        this.clearDebugPoints();
+
+        const points = [];
+
+        const pushCoords = (coords) => {
+            if (!Array.isArray(coords)) return;
+            coords.forEach((coord) => {
+                if (!Array.isArray(coord) || coord.length < 2) return;
+                const lon = coord[0];
+                const lat = coord[1];
+                if (typeof lat !== 'number' || typeof lon !== 'number') return;
+                points.push([lat, lon]);
+            });
+        };
+
+        lines.forEach((line) => {
+            const geom = line && line.geometry;
+            if (!geom || !Array.isArray(geom.coordinates)) return;
+
+            if (geom.type === 'LineString') {
+                pushCoords(geom.coordinates);
+            } else if (geom.type === 'MultiLineString') {
+                geom.coordinates.forEach((part) => pushCoords(part));
+            }
+        });
+
+        if (points.length === 0) {
+            return;
+        }
+
+        const limited = points.slice(0, maxPoints);
+
+        this.debugPointsLayer = L.featureGroup(
+            limited.map((latlng) =>
+                L.circleMarker(latlng, {
+                    radius,
+                    color,
+                    fillColor: color,
+                    fillOpacity: opacity,
+                    weight: 0
+                })
+            )
+        ).addTo(this.map);
+
+        try {
+            this.map.fitBounds(this.debugPointsLayer.getBounds(), {
+                paddingTopLeft: [450, 50],
+                paddingBottomRight: [50, 50]
+            });
+        } catch (e) {
+            // ignore fit errors in debug mode
+        }
+    },
+
+    /**
+     * Convenience helper: pull lines from Storage and visualize their
+     * individual geometry points on the map. Safe to call from the
+     * browser console for quick inspection:
+     *
+     *   MapManager.showAllLinePointsFromStorage();
+     */
+    showAllLinePointsFromStorage(options = {}) {
+        let lines = [];
+        try {
+            // `Storage` is defined globally by js/storage.js
+            if (typeof Storage !== 'undefined' && Storage && typeof Storage.getLines === 'function') {
+                lines = Storage.getLines();
+            }
+        } catch (e) {
+            lines = [];
+        }
+
+        this.showAllLinePoints(lines, options);
+    }
+};
+
+// Simple global helpers for quick debugging from the browser console:
+//   showTrainTrackerDebugPoints();
+//   hideTrainTrackerDebugPoints();
+window.showTrainTrackerDebugPoints = function (options) {
+    if (typeof MapManager !== 'undefined' && MapManager && typeof MapManager.showAllLinePointsFromStorage === 'function') {
+        MapManager.showAllLinePointsFromStorage(options);
+    }
+};
+
+window.hideTrainTrackerDebugPoints = function () {
+    if (typeof MapManager !== 'undefined' && MapManager && typeof MapManager.clearDebugPoints === 'function') {
+        MapManager.clearDebugPoints();
     }
 };
