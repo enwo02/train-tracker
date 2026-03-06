@@ -2,6 +2,10 @@ const MapManager = {
     map: null,
     tempLayer: null,
     savedLayers: null,
+    // Keep track of each saved route layer by its id so we can
+    // highlight individual routes from the sidebar.
+    savedLayerById: {},
+    highlightedSavedId: null,
     railwayOverlay: null,
     railwayOverlayVisible: false,
     // Manual drawing state for user-defined routes
@@ -199,20 +203,129 @@ const MapManager = {
 
     renderSavedLines(lines) {
         this.savedLayers.clearLayers();
+        this.savedLayerById = {};
+        this.highlightedSavedId = null;
+
+        const defaultStyle = {
+            color: '#EB0000', // SBB Red
+            weight: 5,
+            opacity: 1.0, // Solid line for saved
+            lineCap: 'round',
+            lineJoin: 'round'
+        };
 
         lines.forEach(line => {
             if (!line || !line.geometry) return;
 
-            L.geoJSON(line, {
-                style: {
-                    color: '#EB0000', // SBB Red
-                    weight: 5,
-                    opacity: 1.0, // Solid line for saved
-                    lineCap: 'round',
-                    lineJoin: 'round'
-                }
+            const layer = L.geoJSON(line, {
+                style: defaultStyle
             }).addTo(this.savedLayers);
+
+            if (line.id != null) {
+                this.savedLayerById[line.id] = layer;
+            }
         });
+    },
+
+    /**
+     * Visually highlight a saved route by id. Used when hovering
+     * over route cards in the sidebar.
+     */
+    highlightSavedLine(id) {
+        if (!id || !this.savedLayerById) return;
+
+        const dimStyle = {
+            color: '#EB0000',
+            weight: 4,
+            opacity: 0.35,
+            lineCap: 'round',
+            lineJoin: 'round'
+        };
+        const highlightStyle = {
+            color: '#EB0000',
+            weight: 7,   // slightly thicker than default
+            opacity: 1.0,
+            lineCap: 'round',
+            lineJoin: 'round'
+        };
+
+        Object.entries(this.savedLayerById).forEach(([key, layer]) => {
+            if (!layer || typeof layer.setStyle !== 'function') return;
+
+            if (key === String(id)) {
+                layer.setStyle(highlightStyle);
+                if (typeof layer.bringToFront === 'function') {
+                    layer.bringToFront();
+                }
+            } else {
+                layer.setStyle(dimStyle);
+            }
+        });
+
+        this.highlightedSavedId = id;
+    },
+
+    /**
+     * Visually highlight multiple saved routes by id. Used when selecting
+     * routes for merging so you can see which segments will be combined.
+     */
+    highlightMultipleSavedLines(ids) {
+        if (!ids || !Array.isArray(ids) || !this.savedLayerById) return;
+
+        const selected = new Set(ids.map(id => String(id)));
+
+        const dimStyle = {
+            color: '#EB0000',
+            weight: 4,
+            opacity: 0.35,
+            lineCap: 'round',
+            lineJoin: 'round'
+        };
+        const highlightStyle = {
+            color: '#EB0000',
+            weight: 7,
+            opacity: 1.0,
+            lineCap: 'round',
+            lineJoin: 'round'
+        };
+
+        Object.entries(this.savedLayerById).forEach(([key, layer]) => {
+            if (!layer || typeof layer.setStyle !== 'function') return;
+
+            if (selected.has(String(key))) {
+                layer.setStyle(highlightStyle);
+                if (typeof layer.bringToFront === 'function') {
+                    layer.bringToFront();
+                }
+            } else {
+                layer.setStyle(dimStyle);
+            }
+        });
+
+        this.highlightedSavedId = null;
+    },
+
+    /**
+     * Clear any saved route highlight, restoring default styles.
+     */
+    clearSavedHighlight() {
+        if (!this.savedLayerById) return;
+
+        const defaultStyle = {
+            color: '#EB0000',
+            weight: 5,
+            opacity: 1.0,
+            lineCap: 'round',
+            lineJoin: 'round'
+        };
+
+        Object.values(this.savedLayerById).forEach(layer => {
+            if (layer && typeof layer.setStyle === 'function') {
+                layer.setStyle(defaultStyle);
+            }
+        });
+
+        this.highlightedSavedId = null;
     },
 
     setRailwayOverlayVisible(visible) {
