@@ -678,17 +678,40 @@ input[type="text"]:focus {
 }
 
 @media (max-width: 768px) {
+    body {
+        /* Allow vertical scrolling on small screens */
+        overflow: auto;
+    }
+
+    #app {
+        /* Stack map and sidebar vertically */
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+    }
+
+    #map {
+        /* Give the map a fixed height on mobile */
+        height: 55vh;
+        flex-grow: 0;
+    }
+
     #sidebar {
-        width: auto;
-        left: 20px;
-        right: 20px;
-        bottom: 20px;
+        /* Make the card full‑width under the map */
+        position: static;
+        width: 100%;
+        left: auto;
+        right: auto;
         top: auto;
-        height: 50vh;
+        bottom: auto;
+        height: auto;
+        max-height: none;
+        border-radius: 16px 16px 0 0;
+        margin: 0;
     }
 
     .leaflet-control-zoom {
-        margin-right: 20px !important;
-        margin-top: 20px !important;
+        /* Keep zoom controls visible when the sidebar is full-width */
+        margin: 16px 0 0 16px !important;
     }
 }

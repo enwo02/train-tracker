@@ -66,14 +66,19 @@ const MapManager = {
             }
         );
 
-        // 3. Layer control: base map (radio) + overlay (checkbox), always expanded
+        // 3. Layer control: base map (radio) + overlay (checkbox)
+        // On mobile we keep it collapsed so it doesn't take much space.
+        const isMobile = window.innerWidth <= 768;
         L.control.layers(
             {
                 'Map': baseMapLight,
                 'Terrain': baseMapTerrain
             },
             { 'Railway lines': this.railwayOverlay },
-            { position: 'topright', collapsed: false }
+            {
+                position: 'topright',
+                collapsed: isMobile
+            }
         ).addTo(this.map);
 
         // Reposition zoom control
