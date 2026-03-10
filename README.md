@@ -1,8 +1,8 @@
 # Train Tracker
 
-**[Try it Live on GitHub Pages](https://enwo02.github.io/train-tracker/)**
-
 A browser-based interactive map application for visualising and saving your railway journeys. Search for real Swiss train connections using the Open Journey Planner (OJP) API and build a personal map of the lines you have travelled.
+
+**[Try it Live on GitHub Pages](https://enwo02.github.io/train-tracker/)**
 
 ## Features
 
@@ -16,13 +16,11 @@ A browser-based interactive map application for visualising and saving your rail
 - **Dynamic Route Thickness** – map lines scale smartly with the map's zoom level for improved visibility, especially zoomed out or in dense areas
 - **Route preview** – hover over a search result to preview the full journey geometry on the map
 - **Manual Routing** – click along track lines on the map to draw custom routes along real railway infrastructure
-- **Route Editor** – use the newly integrated **Eraser Tool** to select segments of a saved route and easily remove them
+- **Route Editor** – use the **Eraser Tool** to select segments of a saved route and easily remove them
 - **Merge Tool** – select multiple saved segments and merge them together into one unified route
 - **Persistent storage** – saved routes are stored in `localStorage` so they survive page reloads
 - **Export & Import** – download all your saved routes as a JSON file, or restore them
 - **Google Drive sync** – connect Drive to automatically sync saved routes across browsers/devices (with manual upload/download buttons, and safeguards against overwriting local data with a smaller dataset)
-- **SBB-inspired design** – clean, minimal UI using the Swiss Federal Railways red colour scheme
-- **Responsive** – adapts to mobile screen sizes
 
 ## Tech stack
 
