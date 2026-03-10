@@ -99,7 +99,7 @@ const MapManager = {
         // On mobile we keep it collapsed so it doesn't take much space.
         const mapboxToken = 'pk.eyJ1IjoiZW53bzAyIiwiYSI6ImNtbWwxNTQwaTFweGEycnM1eWV1cGtxamMifQ.r68RH710JkBoG2eyaqTrdw';
         // Note: Change 'mapbox/light-v11' to your custom style ID (e.g. 'enwo02/customstyleid') once you hide counties in Mapbox Studio
-        const baseMapMapbox = L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}`, {
+        const baseMapMapbox = L.tileLayer(`https://api.mapbox.com/styles/v1/enwo02/cmml25g86004001s7bpfg1hun/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}`, {
             maxZoom: 19,
             attribution: '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         }).addTo(this.map); // Set Mapbox as default
