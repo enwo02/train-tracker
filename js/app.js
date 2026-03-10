@@ -863,6 +863,39 @@ const App = {
     },
 
     /**
+     * Programmatically focus a saved route, typically triggered by clicking
+     * the route directly on the map.
+     */
+    focusSavedRoute(lineId) {
+        // Find the line card in the UI
+        const items = this.ui.linesList.querySelectorAll('.line-item');
+        let targetItem = null;
+        
+        items.forEach(item => {
+            const deleteBtn = item.querySelector('.btn-icon-delete');
+            if (deleteBtn && deleteBtn.getAttribute('data-id') === String(lineId)) {
+                targetItem = item;
+            }
+        });
+
+        if (targetItem) {
+            // Scroll the item into view
+            targetItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Add a temporary highlight animation to the card
+            targetItem.style.transition = 'background-color 0.3s';
+            targetItem.style.backgroundColor = 'var(--accent-light)';
+            
+            setTimeout(() => {
+                targetItem.style.backgroundColor = '';
+            }, 3000); // Increased highlight duration to 3 seconds
+            
+            // Simulate a click on the item to trigger the map bounds fit
+            targetItem.click();
+        }
+    },
+
+    /**
      * Update map highlighting based on which saved routes are selected
      * for merging.
      */

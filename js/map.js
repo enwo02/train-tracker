@@ -379,6 +379,16 @@ const MapManager = {
                 style: defaultStyle
             }).addTo(this.savedLayers);
 
+            // Add click listener
+            layer.on('click', (e) => {
+                L.DomEvent.stopPropagation(e); // prevent clicking through to the map
+                
+                // Allow the App controller to handle selecting this line in the UI
+                if (typeof App !== 'undefined' && App && typeof App.focusSavedRoute === 'function') {
+                    App.focusSavedRoute(line.id);
+                }
+            });
+
             if (line.id != null) {
                 this.savedLayerById[line.id] = layer;
             }
