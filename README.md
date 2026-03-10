@@ -182,4 +182,4 @@ train-tracker/
 
 ## License
 
-This project is open source. See the repository for details.
+This project is open-source and available under the MIT License.
