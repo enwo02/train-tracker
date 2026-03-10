@@ -103,8 +103,23 @@
                     <span id="drive-sync-status" class="badge badge-muted drive-status-hidden"
                         title="Google Drive sync status">Not connected</span>
                     <button id="btn-connect-drive" class="btn btn-outline btn-small btn-sync" type="button"
-                        title="Connect and sync with Google Drive">
-                        Sync Drive
+                        title="Connect with Google Drive">
+                        Connect Drive
+                    </button>
+                    <!-- Sync action buttons, hidden by default until connected -->
+                    <button id="btn-drive-upload" class="btn btn-outline btn-small btn-icon hidden" type="button" title="Upload local routes to Google Drive">
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                    </button>
+                    <button id="btn-drive-download" class="btn btn-outline btn-small btn-icon hidden" type="button" title="Download and overwrite local routes from Google Drive">
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
                     </button>
                     <button id="btn-export-routes" class="btn btn-outline btn-small" type="button">
                         Export

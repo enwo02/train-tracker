@@ -27,7 +27,9 @@
 
     const ui = {
         status: null,
-        btnConnect: null
+        btnConnect: null,
+        btnUpload: null,
+        btnDownload: null
     };
 
     let tokenClient = null;
@@ -145,6 +147,11 @@
         }
     }
 
+    function setSyncButtonsVisible(visible) {
+        if (ui.btnUpload) ui.btnUpload.classList.toggle('hidden', !visible);
+        if (ui.btnDownload) ui.btnDownload.classList.toggle('hidden', !visible);
+    }
+
     function setEnabled(enabled) {
         try {
             localStorage.setItem(LS.enabled, enabled ? '1' : '0');
@@ -181,8 +188,9 @@
                 if (resp && resp.access_token) {
                     accessToken = resp.access_token;
                     setStatus('Connected', { visible: true, tone: 'success' });
-                    setDriveButtonLabel('Sync Drive');
+                    setDriveButtonLabel('Disconnect Drive');
                     setDriveButtonEnabled(true);
+                    setSyncButtonsVisible(true);
                     try {
                         setEnabled(true);
                     } catch (e) { /* ignore */ }
@@ -197,6 +205,7 @@
                     setStatus('Not connected', { visible: true, tone: 'danger' });
                     setDriveButtonLabel('Connect Drive');
                     setDriveButtonEnabled(true);
+                    setSyncButtonsVisible(false);
 
                     if (tokenWaiters.length > 0) {
                         const waiters = tokenWaiters;
@@ -392,7 +401,7 @@
         return { updatedAt: null, lines: [] };
     }
 
-    async function fullSync({ quiet = false } = {}) {
+    async function uploadToDrive({ quiet = false } = {}) {
         if (pushInFlight) return;
         pushInFlight = true;
 
@@ -403,30 +412,7 @@
                 ? storage.getLines()
                 : [];
 
-            const remote = await downloadRemotePayload(fileId); // { updatedAt, lines }
-            const localUpdatedAt = getLocalUpdatedAt();
-            const remoteUpdatedAt = remote.updatedAt;
-
-            let nextLines = localLines;
-
-            // Fresh browser with no local timestamp but remote has data -> prefer remote.
-            if (!localUpdatedAt && remoteUpdatedAt && remote.lines && remote.lines.length > 0 && localLines.length === 0) {
-                nextLines = remote.lines;
-                if (!quiet) toast('Drive sync: pulled routes from Drive.');
-            }
-            // If remote is strictly newer than local, prefer remote.
-            else if (remoteUpdatedAt && localUpdatedAt && remoteUpdatedAt > localUpdatedAt) {
-                nextLines = remote.lines;
-                if (!quiet) toast('Drive sync: pulled latest routes from Drive.');
-            }
-            // Otherwise local is equal/newer or both empty -> local wins, including deletions.
-
-            // Update local so UI and storage match the chosen source.
-            if (storage && typeof storage.setLines === 'function') {
-                storage.setLines(nextLines);
-            }
-
-            const payload = buildPayload(nextLines);
+            const payload = buildPayload(localLines);
 
             const uploadUrl = `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id,modifiedTime`;
             const headers = { 'Content-Type': 'application/json' };
@@ -451,28 +437,47 @@
                 localStorage.setItem(LS.localUpdatedAt, nowIso);
             } catch (e) { /* ignore */ }
 
-            if (!quiet) toast('Drive sync: saved to Drive.');
-            setStatus('Synced', { visible: true, tone: 'success' });
+            if (!quiet) toast('Overwritten Google Drive with local routes.');
+            setStatus('Connected', { visible: true, tone: 'success' });
         } finally {
             pushInFlight = false;
         }
     }
 
-    function schedulePush() {
-        if (!isEnabled()) return;
-        if (!accessToken) return;
+    async function downloadFromDrive({ quiet = false } = {}) {
+        if (pushInFlight) return;
+        pushInFlight = true;
 
-        setLocalUpdatedAtNow();
+        try {
+            const fileId = await findOrCreateFileId();
+            const storage = getStorage();
+            const localLines = (storage && typeof storage.getLines === 'function')
+                ? storage.getLines()
+                : [];
 
-        if (pushTimer) {
-            clearTimeout(pushTimer);
+            const remote = await downloadRemotePayload(fileId); // { updatedAt, lines }
+            const remoteLines = remote.lines || [];
+
+            if (remoteLines.length < localLines.length) {
+                const confirmOverwrite = window.confirm('Warning: Your Google Drive has fewer routes than your local device. Overwriting will delete some local routes. Continue?');
+                if (!confirmOverwrite) {
+                    return;
+                }
+            }
+
+            if (storage && typeof storage.setLines === 'function') {
+                storage.setLines(remoteLines);
+            }
+
+            try {
+                localStorage.setItem(LS.localUpdatedAt, remote.updatedAt || new Date().toISOString());
+            } catch (e) { /* ignore */ }
+
+            if (!quiet) toast('Downloaded routes from Google Drive.');
+            setStatus('Connected', { visible: true, tone: 'success' });
+        } finally {
+            pushInFlight = false;
         }
-        pushTimer = setTimeout(() => {
-            fullSync({ quiet: true }).catch((e) => {
-                console.warn('Drive sync push failed', e);
-                setStatus('Sync error', { visible: true, tone: 'danger' });
-            });
-        }, 1500);
     }
 
     async function connectAndInitialSync() {
@@ -487,81 +492,90 @@
             await requestAccessToken({ prompt });
             // Best-effort fetch of the account email for display.
             await fetchUserEmail();
+            toast('Connected to Google Drive.');
         } catch (e) {
             console.error(e);
             setStatus('Not connected', { visible: true, tone: 'danger' });
             setDriveButtonLabel('Connect Drive');
             setDriveButtonEnabled(true);
+            setSyncButtonsVisible(false);
             toast(`Drive sync: could not start Google sign-in. ${e && e.message ? e.message : ''}`.trim());
             return;
         }
+    }
 
+    function disconnectDrive() {
+        if (accessToken) {
+            try {
+                if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+                    window.google.accounts.oauth2.revoke(accessToken);
+                }
+            } catch (e) { /* ignore */ }
+        }
+        accessToken = null;
+        setEnabled(false);
+        setAccountEmail('');
+        setStatus('Not connected', { visible: true, tone: 'danger' });
+        setDriveButtonLabel('Connect Drive');
+        setDriveButtonEnabled(true);
+        setSyncButtonsVisible(false);
+        toast('Disconnected from Google Drive.');
+    }
+
+    async function handleUpload() {
+        if (!accessToken) return;
         try {
-            await fullSync({ quiet: false });
-            toast('Drive sync connected.');
-            setStatus('Synced', { visible: true, tone: 'success' });
-            setDriveButtonLabel('Sync Drive');
-            setDriveButtonEnabled(true);
+            ui.btnUpload.disabled = true;
+            await uploadToDrive({ quiet: false });
         } catch (e) {
             console.error(e);
-            setStatus('Sync error', { visible: true, tone: 'danger' });
-            setDriveButtonLabel('Sync Drive');
-            setDriveButtonEnabled(true);
-            toast(`Drive sync: failed to sync. ${e && e.message ? e.message : ''}`.trim());
+            toast(`Drive upload failed. ${e && e.message ? e.message : ''}`.trim());
+        } finally {
+            ui.btnUpload.disabled = false;
         }
     }
 
-    async function manualSyncNow() {
-        if (!accessToken) {
-            // If we don't have a token yet, run the full connect + initial sync flow.
-            await connectAndInitialSync();
-            return;
-        }
+    async function handleDownload() {
+        if (!accessToken) return;
         try {
-            setStatus('Syncing…', { visible: true, tone: 'muted' });
-            setDriveButtonLabel('Syncing…');
-            setDriveButtonEnabled(false);
-            await fullSync({ quiet: false });
-            toast('Drive sync complete.');
-            setStatus('Synced', { visible: true, tone: 'success' });
-            setDriveButtonLabel('Sync Drive');
-            setDriveButtonEnabled(true);
+            ui.btnDownload.disabled = true;
+            await downloadFromDrive({ quiet: false });
         } catch (e) {
             console.error(e);
-            setStatus('Sync error', { visible: true, tone: 'danger' });
-            setDriveButtonLabel('Sync Drive');
-            setDriveButtonEnabled(true);
-            toast(`Drive sync failed. ${e && e.message ? e.message : ''}`.trim());
+            toast(`Drive download failed. ${e && e.message ? e.message : ''}`.trim());
+        } finally {
+            ui.btnDownload.disabled = false;
         }
     }
 
     function wireUi() {
         ui.status = document.getElementById('drive-sync-status');
         ui.btnConnect = document.getElementById('btn-connect-drive');
+        ui.btnUpload = document.getElementById('btn-drive-upload');
+        ui.btnDownload = document.getElementById('btn-drive-download');
 
         if (!ui.btnConnect || !ui.status) return;
 
         setStatus('Not connected', { visible: true, tone: 'danger' });
         setDriveButtonLabel('Connect Drive');
         setDriveButtonEnabled(true);
+        setSyncButtonsVisible(false);
 
         ui.btnConnect.addEventListener('click', () => {
-            // Single-button UX:
-            // - If not connected -> connect + initial sync
-            // - If connected -> sync now
             if (accessToken) {
-                manualSyncNow();
+                disconnectDrive();
             } else {
                 connectAndInitialSync();
             }
         });
-    }
 
-    function wireStorageChangeListener() {
-        window.addEventListener('trainTrackerLinesChanged', () => {
-            // Any local change should eventually push to Drive if connected.
-            schedulePush();
-        });
+        if (ui.btnUpload) {
+            ui.btnUpload.addEventListener('click', handleUpload);
+        }
+        
+        if (ui.btnDownload) {
+            ui.btnDownload.addEventListener('click', handleDownload);
+        }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
