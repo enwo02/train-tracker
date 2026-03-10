@@ -1,5 +1,7 @@
 # Train Tracker
 
+**[Try it Live on GitHub Pages](https://enwo02.github.io/train-tracker/)**
+
 A browser-based interactive map application for visualising and saving your railway journeys. Search for real Swiss train connections using the Open Journey Planner (OJP) API and build a personal map of the lines you have travelled.
 
 ## Features
