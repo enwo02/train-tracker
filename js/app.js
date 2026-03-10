@@ -130,6 +130,16 @@ const App = {
             this.ui.btnMergeRoutes.addEventListener('click', () => this.mergeSelectedRoutes());
         }
 
+        // Eraser toolbar buttons
+        const btnEraserSave = document.getElementById('btn-eraser-save');
+        const btnEraserCancel = document.getElementById('btn-eraser-cancel');
+        if (btnEraserSave) {
+            btnEraserSave.addEventListener('click', () => this.saveEraserChanges());
+        }
+        if (btnEraserCancel) {
+            btnEraserCancel.addEventListener('click', () => this.cancelEraserMode());
+        }
+
         // Allow cancelling drawing with Esc key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && this.state.isDrawingManual) {
@@ -490,8 +500,57 @@ const App = {
 
         this.ui.routeOptionsContainer.classList.add('hidden');
         this.ui.savedLinesContainer.classList.remove('hidden');
+        document.getElementById('eraser-toolbar').classList.add('hidden');
+        document.querySelector('.route-search-container').classList.remove('hidden');
         MapManager.clearTempLine(); // Clear preview because it's now in saved lines
         this.updateSavedUI();
+    },
+
+    /**
+     * Toggles the eraser mode for a specific saved route.
+     * Switches the UI to show the eraser toolbar.
+     */
+    toggleEraserMode(lineId) {
+        const lines = Storage.getLines();
+        const line = lines.find(l => l.id === lineId);
+        if (!line) return;
+
+        // Enter Eraser mode
+        document.getElementById('eraser-toolbar').classList.remove('hidden');
+        this.ui.savedLinesContainer.classList.add('hidden');
+        document.querySelector('.route-search-container').classList.add('hidden');
+        
+        // Let MapManager take over
+        MapManager.startEraser(line);
+        this.showToast('Eraser mode active. Brush over the route to cut segments.');
+    },
+
+    saveEraserChanges() {
+        const modifiedFeature = MapManager.finishEraser();
+        if (modifiedFeature) {
+            // Update in storage directly, using the same ID to overwrite
+            const allLines = Storage.getLines();
+            const updatedLines = allLines.map(l => l.id === modifiedFeature.id ? modifiedFeature : l);
+            Storage.setLines(updatedLines);
+            this.showToast(`Saved changes to ${modifiedFeature.properties.displayName || modifiedFeature.properties.name || 'route'}`);
+        }
+        
+        // Restore UI
+        document.getElementById('eraser-toolbar').classList.add('hidden');
+        this.ui.savedLinesContainer.classList.remove('hidden');
+        document.querySelector('.route-search-container').classList.remove('hidden');
+        this.updateSavedUI();
+    },
+
+    cancelEraserMode() {
+        MapManager.cancelEraser();
+        
+        // Restore UI
+        document.getElementById('eraser-toolbar').classList.add('hidden');
+        this.ui.savedLinesContainer.classList.remove('hidden');
+        document.querySelector('.route-search-container').classList.remove('hidden');
+        this.updateSavedUI();
+        this.showToast('Eraser edits cancelled.');
     },
 
     showToast(message) {
@@ -677,13 +736,19 @@ const App = {
                         ${operatorMeta}
                     </div>
                     <div class="line-actions">
-                        <button class="btn-icon btn-icon-edit" aria-label="Rename line" data-id="${line.id}">
+                        <button class="btn-icon btn-icon-eraser" aria-label="Erase parts of line" data-id="${line.id}" title="Erase Route">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L20 9C20.5 9.5 20.5 10.5 20 11L11 20"></path>
+                                <path d="M10 10L16 16"></path>
+                            </svg>
+                        </button>
+                        <button class="btn-icon btn-icon-edit" aria-label="Rename line" data-id="${line.id}" title="Rename Route">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M12 20h9"></path>
                                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
                             </svg>
                         </button>
-                        <button class="btn-icon btn-icon-delete" aria-label="Delete line" data-id="${line.id}">
+                        <button class="btn-icon btn-icon-delete" aria-label="Delete line" data-id="${line.id}" title="Delete Route">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="3 6 5 6 21 6"></polyline>
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -727,6 +792,15 @@ const App = {
                         });
                         Storage.setLines(updatedLines);
                         this.updateSavedUI();
+                    });
+                }
+
+                // Add erase event
+                const eraserBtn = item.querySelector('.btn-icon-eraser');
+                if (eraserBtn) {
+                    eraserBtn.addEventListener('click', (e) => {
+                        e.stopPropagation(); // prevent focusing the route
+                        this.toggleEraserMode(line.id);
                     });
                 }
 

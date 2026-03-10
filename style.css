@@ -631,6 +631,12 @@ input[type="text"]:focus {
     height: 16px;
 }
 
+/* Eraser mode */
+body.eraser-mode,
+body.eraser-mode #map {
+    cursor: none !important; /* The drawing brush will act as the cursor */
+}
+
 /* Toast */
 .toast {
     position: absolute;

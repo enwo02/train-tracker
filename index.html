@@ -130,6 +130,23 @@
                     <input id="input-import-file" type="file" accept="application/json" class="hidden">
                 </div>
             </div>
+            
+            <!-- Eraser Mode Toolbar -->
+            <div id="eraser-toolbar" class="hidden">
+                <div class="section-header">
+                    <h2>Erase Route Segments</h2>
+                </div>
+                <!-- We give it some padding similar to route-search-container -->
+                <div style="padding: 0 24px 16px;">
+                    <p class="text-muted" style="font-size: 13px; margin-bottom: 12px; line-height: 1.4;">
+                        Click and drag the circle over the red line to erase sections.
+                    </p>
+                    <div style="display: flex; gap: 8px;">
+                        <button id="btn-eraser-save" class="btn btn-primary" style="flex: 1;">Save Changes</button>
+                        <button id="btn-eraser-cancel" class="btn btn-outline" style="flex: 1;">Cancel</button>
+                    </div>
+                </div>
+            </div>
 
             <div id="saved-lines-container">
                 <div class="section-header">

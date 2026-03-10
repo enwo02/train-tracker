@@ -23,6 +23,30 @@ const MapManager = {
     // Debug layer for visualizing all stored geometry points
     debugPointsLayer: null,
 
+    // Eraser Tool state
+    isErasing: false,
+    eraserFeature: null,
+    eraserLayer: null,
+    eraserBrushLayer: null,
+    eraserBrushRadius: 30, // px radius
+    eraserMoveHandler: null,
+    eraserDownHandler: null,
+    eraserUpHandler: null,
+    eraserIsDown: false,
+    eraserUpGlobalHandler: null,
+    
+    // Eraser Tool state
+    isErasing: false,
+    eraserFeature: null,
+    eraserLayer: null,
+    eraserBrushLayer: null,
+    eraserBrushRadius: 30, // px radius
+    eraserMoveHandler: null,
+    eraserDownHandler: null,
+    eraserUpHandler: null,
+    eraserIsDown: false,
+
+
     // Preloaded railway network from local GeoJSON tiles
     railNodes: [],
     railAdj: [],
@@ -828,7 +852,262 @@ const MapManager = {
     },
 
     /**
+     * Start the Eraser tool on a given feature.
+     */
+    startEraser(feature) {
+        if (!this.map || !feature) return;
+
+        this.isErasing = true;
+        this.eraserFeature = JSON.parse(JSON.stringify(feature)); // deep clone
+        
+        // Dim all other lines drastically to put focus on the erasing
+        if (this.savedLayerById) {
+            Object.values(this.savedLayerById).forEach(layer => {
+                if (layer && typeof layer.setStyle === 'function') {
+                    layer.setStyle({ opacity: 0.1 });
+                }
+            });
+        }
+        
+        // We will maintain this geometry as lines are brushed away.
+        // It should be represented as a unified set of lines (Array of Coordinate Arrays)
+        // so it's simple to split.
+        let lines = [];
+        const geom = this.eraserFeature.geometry;
+        if (geom.type === 'LineString') {
+            lines = [geom.coordinates];
+        } else if (geom.type === 'MultiLineString') {
+            lines = geom.coordinates;
+        }
+        this.eraserFeature.geometry = {
+            type: 'MultiLineString',
+            coordinates: lines
+        };
+        
+        // Setup Eraser Layer showing the active geometry in a distinct color (e.g. Blue)
+        this.eraserLayer = L.geoJSON(this.eraserFeature, {
+            interactive: false,
+            style: {
+                color: '#0070f3', // Blue color to indicate editing mode
+                weight: this.getDynamicWeight() + 2,
+                opacity: 1.0,
+                lineCap: 'round',
+                lineJoin: 'round'
+            }
+        }).addTo(this.map);
+        
+        if (this.eraserLayer && typeof this.eraserLayer.bringToFront === 'function') {
+            this.eraserLayer.bringToFront();
+        }
+
+        // Setup the Brush crosshair
+        this.eraserBrushLayer = L.circleMarker([0,0], {
+            radius: this.eraserBrushRadius, // pixel radius
+            color: '#111',
+            weight: 2,
+            fillColor: '#ffffff',
+            fillOpacity: 0.4,
+            interactive: false
+        }).addTo(this.map);
+
+        document.body.classList.add('eraser-mode');
+
+        this.eraserMoveHandler = (e) => {
+            if (!this.isErasing) return;
+            const latlng = e.latlng;
+            this.eraserBrushLayer.setLatLng(latlng);
+
+            if (this.eraserIsDown) {
+                this.eraseAtPoint(latlng);
+            }
+        };
+
+        this.eraserDownHandler = (e) => {
+            if (!this.isErasing) return;
+            // Left click only
+            if (e.originalEvent.button !== 0) return;
+            
+            // Re-sync dragging logic. Disable default dragging temporarily while erasing.
+            this.map.dragging.disable();
+            this.eraserIsDown = true;
+            this.eraseAtPoint(e.latlng);
+        };
+
+        this.eraserUpHandler = (e) => {
+            if (!this.isErasing) return;
+            if (e.originalEvent.button !== 0) return;
+            
+            this.eraserIsDown = false;
+            this.map.dragging.enable();
+        };
+
+        this.eraserUpGlobalHandler = () => {
+            if (this.isErasing && typeof this.map !== 'undefined' && this.map) {
+                this.eraserIsDown = false;
+                if (this.map.dragging) {
+                    this.map.dragging.enable();
+                }
+            }
+        };
+
+        this.map.on('mousemove', this.eraserMoveHandler);
+        this.map.on('mousedown', this.eraserDownHandler);
+        this.map.on('mouseup', this.eraserUpHandler);
+        
+        // Safety bounds
+        document.addEventListener('mouseup', this.eraserUpGlobalHandler);
+    },
+
+    /**
+     * Erases any path segment within the brush radius.
+     */
+    eraseAtPoint(latlng) {
+        if (!this.eraserFeature || !this.eraserFeature.geometry) return;
+        
+        const centerPt = this.map.latLngToContainerPoint(latlng);
+        let updatedLines = [];
+        let didChange = false;
+
+        const lines = this.eraserFeature.geometry.coordinates;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            let currentValidSegment = [];
+
+            for (let j = 0; j < line.length; j++) {
+                const coord = line[j];
+                const ptLatLng = L.latLng(coord[1], coord[0]);
+                const pt = this.map.latLngToContainerPoint(ptLatLng);
+                
+                // Distance to brush center
+                const dist = centerPt.distanceTo(pt);
+
+                if (dist <= this.eraserBrushRadius) {
+                    // This point is inside the brush and should be erased.
+                    if (currentValidSegment.length > 0) {
+                        // We hit an erased point, so our valid segment ends.
+                        // We only keep segments with >= 2 points to draw a line.
+                        if (currentValidSegment.length >= 2) {
+                            updatedLines.push(currentValidSegment);
+                        }
+                        currentValidSegment = [];
+                    }
+                    didChange = true;
+                } else {
+                    // Valid point, inside the current accumulated segment
+                    currentValidSegment.push(coord);
+                    
+                    // We also need to check the segment *between* points to robustly break lines
+                    // even if the vertices themselves are outside the brush.
+                    if (j > 0 && currentValidSegment.length >= 2) {
+                        const prevCoord = line[j - 1];
+                        const ptPrevLatLng = L.latLng(prevCoord[1], prevCoord[0]);
+                        const ptPrev = this.map.latLngToContainerPoint(ptPrevLatLng);
+                        
+                        // Distance from brush center to segment connecting pt and ptPrev
+                        const distToSegment = L.LineUtil.pointToSegmentDistance(centerPt, ptPrev, pt);
+                        
+                        // If segment intersects brush, break it strictly here.
+                        if (distToSegment <= this.eraserBrushRadius && dist > this.eraserBrushRadius && centerPt.distanceTo(ptPrev) > this.eraserBrushRadius) {
+                           // The line connecting these two points passes through the brush.
+                           // Discard the previous point from our *next* piece, the line is broken!
+                           // Pop the current point we just pushed to use it to start the NEXT segment
+                           currentValidSegment.pop();
+                           
+                           if (currentValidSegment.length >= 2) {
+                               updatedLines.push(currentValidSegment);
+                           }
+                           
+                           currentValidSegment = [coord]; // Start a new piece starting from this current point
+                           didChange = true;
+                        }
+                    }
+                }
+            }
+
+            if (currentValidSegment.length >= 2) {
+                updatedLines.push(currentValidSegment);
+            }
+        }
+
+        if (didChange) {
+            this.eraserFeature.geometry.coordinates = updatedLines;
+            
+            // Redraw eraser layer
+            this.map.removeLayer(this.eraserLayer);
+            this.eraserLayer = L.geoJSON(this.eraserFeature, {
+                interactive: false,
+                style: {
+                    color: '#0070f3', // Keep it blue while editing
+                    weight: this.getDynamicWeight() + 2,
+                    opacity: 1.0,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                }
+            }).addTo(this.map);
+            if (this.eraserLayer && typeof this.eraserLayer.bringToFront === 'function') {
+                this.eraserLayer.bringToFront();
+            }
+        }
+    },
+
+    /**
+     * Restore standard view and remove eraser events without returning the modified object.
+     */
+    cancelEraser() {
+        this._cleanupEraser();
+        // Return visibility to the regular layer
+        this.clearSavedHighlight(); 
+    },
+
+    /**
+     * Restore standard view and return the modified feature.
+     */
+    finishEraser() {
+        const feature = this.eraserFeature;
+        this._cleanupEraser();
+        // Restore standard visibility
+        this.clearSavedHighlight();
+        return feature;
+    },
+
+    _cleanupEraser() {
+        if (!this.map) return;
+        this.isErasing = false;
+
+        document.removeEventListener('mouseup', this.eraserUpGlobalHandler);
+
+        if (this.eraserMoveHandler) {
+            this.map.off('mousemove', this.eraserMoveHandler);
+            this.eraserMoveHandler = null;
+        }
+        if (this.eraserDownHandler) {
+            this.map.off('mousedown', this.eraserDownHandler);
+            this.eraserDownHandler = null;
+        }
+        if (this.eraserUpHandler) {
+            this.map.off('mouseup', this.eraserUpHandler);
+            this.eraserUpHandler = null;
+        }
+        if (this.eraserBrushLayer) {
+            this.map.removeLayer(this.eraserBrushLayer);
+            this.eraserBrushLayer = null;
+        }
+        if (this.eraserLayer) {
+             this.map.removeLayer(this.eraserLayer);
+             this.eraserLayer = null;
+        }
+        this.eraserFeature = null;
+        this.eraserIsDown = false;
+        if (this.map.dragging) {
+            this.map.dragging.enable();
+        }
+        document.body.classList.remove('eraser-mode');
+    },
+
+    /**
      * Remove any debug points layer from the map.
+
      */
     clearDebugPoints() {
         if (this.debugPointsLayer && this.map) {
