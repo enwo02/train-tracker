@@ -6,6 +6,7 @@ const MapManager = {
     // highlight individual routes from the sidebar.
     savedLayerById: {},
     highlightedSavedId: null,
+    highlightedMultipleIds: null,
     railwayOverlay: null,
     railwayOverlayVisible: false,
     // Manual drawing state for user-defined routes
@@ -105,6 +106,9 @@ const MapManager = {
             attribution: '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         }).addTo(this.map); // Set Mapbox as default
 
+        // Layer group for saved lines
+        this.savedLayers = L.featureGroup().addTo(this.map);
+
         const isMobile = window.innerWidth <= 768;
         L.control.layers(
             {
@@ -115,7 +119,10 @@ const MapManager = {
                 'OpenStreetMap': baseMapOSM,
                 'Terrain': baseMapTerrain
             },
-            { 'Railway lines': this.railwayOverlay },
+            {
+                'Railway lines': this.railwayOverlay,
+                'My Routes': this.savedLayers
+            },
             {
                 position: 'topright',
                 collapsed: isMobile
@@ -127,10 +134,72 @@ const MapManager = {
             position: 'topright'
         }).addTo(this.map);
 
-        // Layer group for saved lines
-        this.savedLayers = L.featureGroup().addTo(this.map);
+        this.map.on('zoomend', () => {
+            this.updateRouteStyles();
+        });
 
         // Railway network is loaded lazily from tiles when needed.
+    },
+
+    getDynamicWeight() {
+        if (!this.map) return 4;
+        const zoom = this.map.getZoom();
+        const baseZoom = 8;
+        const baseWeight = 4;
+        
+        // We only scale extremely slightly when zooming in,
+        // and reduce thickness smoothly when zooming out.
+        const scaleFactor = 1.05;
+        
+        const weight = baseWeight * Math.pow(scaleFactor, zoom - baseZoom);
+        
+        // Clamp between 2px (so we can still see lines zoomed out)
+        // and a very modest 5px (barely thicker than base zoom).
+        return Math.max(1, Math.min(weight, 5));
+    },
+
+    updateRouteStyles() {
+        const weight = this.getDynamicWeight();
+        
+        // Update temp layer
+        if (this.tempLayer) {
+            this.tempLayer.setStyle({ weight: weight + 1 });
+        }
+
+        // Update manual draw layers
+        if (this.manualLayer) {
+            this.manualLayer.setStyle({ weight: weight });
+        }
+        if (this.manualPreviewLayer) {
+            this.manualPreviewLayer.setStyle({ weight: Math.max(1, weight - 1) });
+        }
+        
+        if (!this.savedLayerById) return;
+
+        const defaultStyle = {
+            weight: weight,
+        };
+        const dimStyle = {
+            weight: Math.max(1, weight - 1),
+        };
+        const highlightStyle = {
+            weight: weight + 2,
+        };
+
+        Object.entries(this.savedLayerById).forEach(([key, layer]) => {
+            if (!layer || typeof layer.setStyle !== 'function') return;
+            
+            let applyStyle = defaultStyle;
+            if (this.highlightedSavedId && key === this.highlightedSavedId) {
+                applyStyle = highlightStyle;
+            } else if (this.highlightedMultipleIds && this.highlightedMultipleIds.has(key)) {
+                applyStyle = highlightStyle;
+            } else if (this.highlightedSavedId || this.highlightedMultipleIds) {
+                applyStyle = dimStyle;
+            }
+
+            layer.setStyle(applyStyle);
+        });
     },
 
     /**
@@ -240,10 +309,12 @@ const MapManager = {
             return;
         }
 
+        const weight = this.getDynamicWeight();
+
         this.tempLayer = L.geoJSON(geoJsonFeature, {
             style: {
                 color: '#EB0000', // SBB Red
-                weight: 6,
+                weight: weight + 1,
                 opacity: 0.6,
                 dashArray: '5, 10' // Pulsing/dashed effect for preview
             }
@@ -265,10 +336,13 @@ const MapManager = {
         this.savedLayers.clearLayers();
         this.savedLayerById = {};
         this.highlightedSavedId = null;
+        this.highlightedMultipleIds = null;
+
+        const weight = this.getDynamicWeight();
 
         const defaultStyle = {
             color: '#EB0000', // SBB Red
-            weight: 5,
+            weight: weight,
             opacity: 1.0, // Solid line for saved
             lineCap: 'round',
             lineJoin: 'round'
@@ -294,16 +368,18 @@ const MapManager = {
     highlightSavedLine(id) {
         if (!id || !this.savedLayerById) return;
 
+        const weight = this.getDynamicWeight();
+
         const dimStyle = {
             color: '#EB0000',
-            weight: 4,
+            weight: Math.max(1, weight - 1),
             opacity: 0.35,
             lineCap: 'round',
             lineJoin: 'round'
         };
         const highlightStyle = {
             color: '#EB0000',
-            weight: 7,   // slightly thicker than default
+            weight: weight + 2,   // slightly thicker than default
             opacity: 1.0,
             lineCap: 'round',
             lineJoin: 'round'
@@ -322,7 +398,8 @@ const MapManager = {
             }
         });
 
-        this.highlightedSavedId = id;
+        this.highlightedSavedId = String(id);
+        this.highlightedMultipleIds = null;
     },
 
     /**
@@ -333,17 +410,18 @@ const MapManager = {
         if (!ids || !Array.isArray(ids) || !this.savedLayerById) return;
 
         const selected = new Set(ids.map(id => String(id)));
+        const weight = this.getDynamicWeight();
 
         const dimStyle = {
             color: '#EB0000',
-            weight: 4,
+            weight: Math.max(1, weight - 1),
             opacity: 0.35,
             lineCap: 'round',
             lineJoin: 'round'
         };
         const highlightStyle = {
             color: '#EB0000',
-            weight: 7,
+            weight: weight + 2,
             opacity: 1.0,
             lineCap: 'round',
             lineJoin: 'round'
@@ -363,6 +441,7 @@ const MapManager = {
         });
 
         this.highlightedSavedId = null;
+        this.highlightedMultipleIds = selected;
     },
 
     /**
@@ -371,9 +450,11 @@ const MapManager = {
     clearSavedHighlight() {
         if (!this.savedLayerById) return;
 
+        const weight = this.getDynamicWeight();
+
         const defaultStyle = {
             color: '#EB0000',
-            weight: 5,
+            weight: weight,
             opacity: 1.0,
             lineCap: 'round',
             lineJoin: 'round'
@@ -386,6 +467,7 @@ const MapManager = {
         });
 
         this.highlightedSavedId = null;
+        this.highlightedMultipleIds = null;
     },
 
     setRailwayOverlayVisible(visible) {
@@ -599,7 +681,7 @@ const MapManager = {
             if (!this.manualLayer) {
                 this.manualLayer = L.polyline(this.manualPoints, {
                     color: '#EB0000',
-                    weight: 5,
+                    weight: this.getDynamicWeight(),
                     opacity: 0.9,
                     lineCap: 'round',
                     lineJoin: 'round'
@@ -646,7 +728,7 @@ const MapManager = {
             if (!this.manualPreviewLayer) {
                 this.manualPreviewLayer = L.polyline(previewLatLngs, {
                     color: '#EB0000',
-                    weight: 4,
+                    weight: Math.max(1, this.getDynamicWeight() - 1),
                     opacity: 0.7,
                     dashArray: '5,8',
                     lineCap: 'round',
