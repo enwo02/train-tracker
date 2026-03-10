@@ -52,6 +52,33 @@ const MapManager = {
             })
         ]).addTo(this.map);
 
+        const baseMapVoyager = L.layerGroup([
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            }),
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
+                maxZoom: 20,
+                attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>'
+            })
+        ]).addTo(this.map); // Set Voyager as default
+
+        const baseMapOSM = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        });
+
+        const baseMapDarkMatter = L.layerGroup([
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            }),
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
+                maxZoom: 20,
+                attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>'
+            })
+        ]);
+
         const baseMapTerrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
             maxZoom: 17,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM &copy; <a href="https://opentopomap.org/">OpenTopoMap</a> (CC-BY-SA)'
@@ -73,7 +100,10 @@ const MapManager = {
         const isMobile = window.innerWidth <= 768;
         L.control.layers(
             {
-                'Map': baseMapLight,
+                'Voyager (Colorful)': baseMapVoyager,
+                'Light (Muted)': baseMapLight,
+                'Dark Matter': baseMapDarkMatter,
+                'OpenStreetMap': baseMapOSM,
                 'Terrain': baseMapTerrain
             },
             { 'Railway lines': this.railwayOverlay },
