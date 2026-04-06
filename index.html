@@ -49,29 +49,31 @@
             </header>
 
             <div class="route-search-container">
-                <h3 class="section-title">Swiss routes</h3>
-                <div class="stations-row">
-                    <div class="input-group">
-                        <div class="autocomplete-wrapper">
-                            <input type="text" id="input-start" placeholder="Start" autocomplete="off">
-                            <ul id="autocomplete-start" class="autocomplete-list hidden"></ul>
+                <div class="hidden" aria-hidden="true">
+                    <h3 class="section-title">Swiss routes</h3>
+                    <div class="stations-row">
+                        <div class="input-group">
+                            <div class="autocomplete-wrapper">
+                                <input type="text" id="input-start" placeholder="Start" autocomplete="off">
+                                <ul id="autocomplete-start" class="autocomplete-list hidden"></ul>
+                            </div>
+                        </div>
+                        <button id="btn-swap-stations" class="swap-button" aria-label="Swap start and end stations">
+                            ⇄
+                        </button>
+                        <div class="input-group">
+                            <div class="autocomplete-wrapper">
+                                <input type="text" id="input-end" placeholder="End" autocomplete="off">
+                                <ul id="autocomplete-end" class="autocomplete-list hidden"></ul>
+                            </div>
                         </div>
                     </div>
-                    <button id="btn-swap-stations" class="swap-button" aria-label="Swap start and end stations">
-                        ⇄
-                    </button>
-                    <div class="input-group">
-                        <div class="autocomplete-wrapper">
-                            <input type="text" id="input-end" placeholder="End" autocomplete="off">
-                            <ul id="autocomplete-end" class="autocomplete-list hidden"></ul>
-                        </div>
-                    </div>
+                    <button id="btn-search-route" class="btn btn-primary w-full mt-8" disabled>Search Route</button>
                 </div>
-                <button id="btn-search-route" class="btn btn-primary w-full mt-8" disabled>Search Route</button>
 
-                <h3 class="section-title mt-16">International routes</h3>
+                <h3 class="hidden">International routes</h3>
                 <button id="btn-draw-route" class="btn btn-outline w-full mt-8">
-                    Draw custom route
+                    Draw new route
                 </button>
                 <p id="draw-hint" class="hidden">
                     Click along the railway line on the map to trace your journey. Click
@@ -169,7 +171,7 @@
 
                 <div id="lines-list">
                     <!-- List items injected by JS -->
-                    <p id="empty-state">Search for a route above to add your first journey.</p>
+                    <p id="empty-state">Draw a custom route above to add your first journey.</p>
                 </div>
             </div>
         </div>

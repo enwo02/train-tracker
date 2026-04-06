@@ -79,9 +79,20 @@ const App = {
 
     // Debounce timer for autocomplete
     searchTimeout: null,
+    mobileSheet: {
+        sidebar: null,
+        header: null,
+        isEnabled: false,
+        isDragging: false,
+        pointerId: null,
+        startY: 0,
+        startOffset: 0,
+        currentOffset: 0
+    },
 
     init() {
         MapManager.init();
+        this.initMobileSheet();
         this.bindEvents();
         this.updateSavedUI();
     },
@@ -146,6 +157,106 @@ const App = {
                 this.cancelManualDraw();
             }
         });
+    },
+
+    initMobileSheet() {
+        this.mobileSheet.sidebar = document.getElementById('sidebar');
+        this.mobileSheet.header = document.querySelector('#sidebar > header');
+
+        if (!this.mobileSheet.sidebar || !this.mobileSheet.header) {
+            return;
+        }
+
+        this.syncMobileSheetMode();
+        window.addEventListener('resize', () => this.syncMobileSheetMode());
+    },
+
+    syncMobileSheetMode() {
+        const isMobile = window.matchMedia('(max-width: 768px)').matches;
+        if (isMobile && !this.mobileSheet.isEnabled) {
+            this.enableMobileSheet();
+            return;
+        }
+
+        if (!isMobile && this.mobileSheet.isEnabled) {
+            this.disableMobileSheet();
+        }
+    },
+
+    enableMobileSheet() {
+        this.mobileSheet.isEnabled = true;
+        this.mobileSheet.currentOffset = 0;
+        this.mobileSheet.sidebar.style.transform = 'translateY(0px)';
+        this.mobileSheet.header.addEventListener('pointerdown', this.handleSheetPointerDown);
+    },
+
+    disableMobileSheet() {
+        this.mobileSheet.isEnabled = false;
+        this.mobileSheet.isDragging = false;
+        this.mobileSheet.pointerId = null;
+        this.mobileSheet.sidebar.classList.remove('dragging');
+        this.mobileSheet.sidebar.style.transform = '';
+        this.mobileSheet.header.removeEventListener('pointerdown', this.handleSheetPointerDown);
+        this.mobileSheet.header.removeEventListener('pointermove', this.handleSheetPointerMove);
+        this.mobileSheet.header.removeEventListener('pointerup', this.handleSheetPointerUp);
+        this.mobileSheet.header.removeEventListener('pointercancel', this.handleSheetPointerUp);
+    },
+
+    getMaxSheetOffset() {
+        const sidebarHeight = this.mobileSheet.sidebar ? this.mobileSheet.sidebar.offsetHeight : 0;
+        const headerHeight = this.mobileSheet.header ? this.mobileSheet.header.offsetHeight : 0;
+        return Math.max(0, sidebarHeight - headerHeight);
+    },
+
+    handleSheetPointerDown: (event) => {
+        if (!App.mobileSheet.isEnabled || event.pointerType === 'mouse' && event.button !== 0) {
+            return;
+        }
+
+        App.mobileSheet.isDragging = true;
+        App.mobileSheet.pointerId = event.pointerId;
+        App.mobileSheet.startY = event.clientY;
+        App.mobileSheet.startOffset = App.mobileSheet.currentOffset;
+        App.mobileSheet.sidebar.classList.add('dragging');
+        App.mobileSheet.header.setPointerCapture(event.pointerId);
+        App.mobileSheet.header.addEventListener('pointermove', App.handleSheetPointerMove);
+        App.mobileSheet.header.addEventListener('pointerup', App.handleSheetPointerUp);
+        App.mobileSheet.header.addEventListener('pointercancel', App.handleSheetPointerUp);
+        event.preventDefault();
+    },
+
+    handleSheetPointerMove: (event) => {
+        if (!App.mobileSheet.isDragging || App.mobileSheet.pointerId !== event.pointerId) {
+            return;
+        }
+
+        const deltaY = event.clientY - App.mobileSheet.startY;
+        const maxOffset = App.getMaxSheetOffset();
+        const nextOffset = Math.min(maxOffset, Math.max(0, App.mobileSheet.startOffset + deltaY));
+        App.mobileSheet.currentOffset = nextOffset;
+        App.mobileSheet.sidebar.style.transform = `translateY(${nextOffset}px)`;
+        event.preventDefault();
+    },
+
+    handleSheetPointerUp: (event) => {
+        if (App.mobileSheet.pointerId !== event.pointerId) {
+            return;
+        }
+
+        App.mobileSheet.isDragging = false;
+        App.mobileSheet.pointerId = null;
+        App.mobileSheet.sidebar.classList.remove('dragging');
+        App.mobileSheet.header.removeEventListener('pointermove', App.handleSheetPointerMove);
+        App.mobileSheet.header.removeEventListener('pointerup', App.handleSheetPointerUp);
+        App.mobileSheet.header.removeEventListener('pointercancel', App.handleSheetPointerUp);
+
+        const maxOffset = App.getMaxSheetOffset();
+        App.mobileSheet.currentOffset = Math.min(maxOffset, Math.max(0, App.mobileSheet.currentOffset));
+        App.mobileSheet.sidebar.style.transform = `translateY(${App.mobileSheet.currentOffset}px)`;
+
+        if (MapManager && MapManager.map && typeof MapManager.map.invalidateSize === 'function') {
+            setTimeout(() => MapManager.map.invalidateSize(), 220);
+        }
     },
 
     handleInput(value, type) {

@@ -685,35 +685,55 @@ body.eraser-mode #map {
 
 @media (max-width: 768px) {
     body {
-        /* Allow vertical scrolling on small screens */
-        overflow: auto;
+        overflow: hidden;
     }
 
     #app {
-        /* Stack map and sidebar vertically */
-        flex-direction: column;
-        height: auto;
-        min-height: 100vh;
+        height: 100dvh;
+        min-height: 100dvh;
+        overflow: hidden;
     }
 
     #map {
-        /* Give the map a fixed height on mobile */
-        height: 55vh;
-        flex-grow: 0;
+        height: 100%;
+        width: 100%;
+        flex-grow: 1;
     }
 
     #sidebar {
-        /* Make the card full‑width under the map */
-        position: static;
-        width: 100%;
-        left: auto;
-        right: auto;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
         top: auto;
-        bottom: auto;
-        height: auto;
-        max-height: none;
+        width: 100%;
+        height: min(78dvh, 680px);
+        max-height: calc(100dvh - env(safe-area-inset-top));
         border-radius: 16px 16px 0 0;
         margin: 0;
+        transform: translateY(0);
+        will-change: transform;
+        touch-action: pan-y;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    #sidebar>header {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
+    }
+
+    #sidebar.dragging {
+        transition: none;
+    }
+
+    #sidebar.dragging>header {
+        cursor: grabbing;
     }
 
     .leaflet-control-zoom {
