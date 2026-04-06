@@ -18,6 +18,7 @@ const App = {
         btnSearchRoute: document.getElementById('btn-search-route'),
         btnSwapStations: document.getElementById('btn-swap-stations'),
         btnDrawRoute: document.getElementById('btn-draw-route'),
+        btnUndoDraw: document.getElementById('btn-undo-draw'),
         drawHint: document.getElementById('draw-hint'),
 
         loadingIndicator: document.getElementById('loading-indicator'),
@@ -123,6 +124,9 @@ const App = {
         // Manual draw button for custom routes
         if (this.ui.btnDrawRoute) {
             this.ui.btnDrawRoute.addEventListener('click', () => this.toggleManualDraw());
+        }
+        if (this.ui.btnUndoDraw) {
+            this.ui.btnUndoDraw.addEventListener('click', () => this.undoManualDrawStep());
         }
 
         // Export / Import saved routes
@@ -512,21 +516,36 @@ const App = {
      */
     async toggleManualDraw() {
         if (!this.state.isDrawingManual) {
+            const isMobile = window.matchMedia('(max-width: 768px)').matches;
             // Enter drawing mode
             this.state.isDrawingManual = true;
             if (this.ui.btnDrawRoute) {
                 this.ui.btnDrawRoute.textContent = 'Finish drawing (save route)';
             }
             if (this.ui.drawHint) {
+                this.ui.drawHint.innerHTML = isMobile
+                    ? 'Tap a rail segment to place the bubble, then drag the bubble along the tracks to extend your route. Tap the bubble or <strong>Finish drawing</strong> to save.'
+                    : 'Click along the railway line on the map to trace your journey. Click <strong>Finish drawing</strong> to save, or press <strong>Esc</strong> to cancel.';
                 this.ui.drawHint.classList.remove('hidden');
             }
             await MapManager.startManualDraw();
-            this.showToast('Click along the track on the map to trace your route.');
+            this.updateManualUndoButton();
+            this.showToast(isMobile
+                ? 'Tap a segment to start, then drag the bubble to extend.'
+                : 'Click along the track on the map to trace your route.');
             return;
         }
 
         // Finish drawing and save using the snapped railway geometry that
         // MapManager has built up.
+        const anchorCount = typeof MapManager.getManualAnchorCount === 'function'
+            ? MapManager.getManualAnchorCount()
+            : 0;
+        if (anchorCount === 0) {
+            this.cancelManualDraw();
+            return;
+        }
+
         const coords = MapManager.getManualDrawCoordinates();
         if (!coords || coords.length < 2) {
             this.showToast('Add at least two points on the map to define a route.');
@@ -562,11 +581,12 @@ const App = {
         MapManager.cancelManualDraw();
         this.state.isDrawingManual = false;
         if (this.ui.btnDrawRoute) {
-            this.ui.btnDrawRoute.textContent = 'Draw custom route on map';
+            this.ui.btnDrawRoute.textContent = 'Draw new route';
         }
         if (this.ui.drawHint) {
             this.ui.drawHint.classList.add('hidden');
         }
+        this.updateManualUndoButton();
 
         this.updateSavedUI();
     },
@@ -578,12 +598,48 @@ const App = {
         MapManager.cancelManualDraw();
         this.state.isDrawingManual = false;
         if (this.ui.btnDrawRoute) {
-            this.ui.btnDrawRoute.textContent = 'Draw custom route on map';
+            this.ui.btnDrawRoute.textContent = 'Draw new route';
         }
         if (this.ui.drawHint) {
             this.ui.drawHint.classList.add('hidden');
         }
+        this.updateManualUndoButton();
         this.showToast('Drawing cancelled');
+    },
+
+    undoManualDrawStep() {
+        if (!this.state.isDrawingManual) return;
+
+        const didUndo = MapManager.undoManualDrawStep();
+        this.updateManualUndoButton();
+        if (!didUndo) {
+            this.showToast('Nothing to undo yet.');
+            return;
+        }
+
+        const remainingAnchors = typeof MapManager.getManualAnchorCount === 'function'
+            ? MapManager.getManualAnchorCount()
+            : 0;
+        if (remainingAnchors === 0) {
+            this.showToast('Start point removed. Tap a segment to start again.');
+        } else {
+            this.showToast('Removed last segment.');
+        }
+    },
+
+    updateManualUndoButton() {
+        if (!this.ui.btnUndoDraw) return;
+        if (!this.state.isDrawingManual) {
+            this.ui.btnUndoDraw.classList.add('hidden');
+            this.ui.btnUndoDraw.disabled = true;
+            return;
+        }
+
+        this.ui.btnUndoDraw.classList.remove('hidden');
+        const anchorCount = typeof MapManager.getManualAnchorCount === 'function'
+            ? MapManager.getManualAnchorCount()
+            : 0;
+        this.ui.btnUndoDraw.disabled = anchorCount === 0;
     },
 
     addRoute(routeFeature) {

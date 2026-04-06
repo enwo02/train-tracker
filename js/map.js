@@ -19,6 +19,13 @@ const MapManager = {
     manualAnchorMarkers: [],
     manualPreviewLayer: null,
     manualHoverMarker: null,
+    manualHandleMarker: null,
+    manualHandleMoved: false,
+    manualLoadOnMoveHandler: null,
+    manualLoadRefreshPending: false,
+    manualLoadRefreshRunning: false,
+    railSelectionLayer: null,
+    railSegments: [],
     lastPreviewTs: 0,
     // Debug layer for visualizing all stored geometry points
     debugPointsLayer: null,
@@ -295,12 +302,14 @@ const MapManager = {
             if (!f || !f.geometry || f.geometry.type !== 'LineString') return;
             const coords = f.geometry.coordinates;
             if (!Array.isArray(coords) || coords.length < 2) return;
+            const latLngSegment = [];
 
             let prevIdx = null;
             coords.forEach((coord) => {
                 if (!Array.isArray(coord) || coord.length < 2) return;
                 const lon = coord[0];
                 const lat = coord[1];
+                latLngSegment.push([lat, lon]);
                 const key = `${lon.toFixed(5)},${lat.toFixed(5)}`;
                 let idx = nodeIndexByKey[key];
                 if (idx === undefined) {
@@ -314,7 +323,83 @@ const MapManager = {
                 }
                 prevIdx = idx;
             });
+
+            if (latLngSegment.length >= 2) {
+                this.railSegments.push(latLngSegment);
+            }
         });
+    },
+
+    isMobileViewport() {
+        return window.matchMedia('(max-width: 768px)').matches;
+    },
+
+    showRailSelectionOverlay() {
+        if (!this.map || !this.railSegments || this.railSegments.length === 0) return;
+        this.hideRailSelectionOverlay();
+        this.railSelectionLayer = L.polyline(this.railSegments, {
+            color: '#E18A2D',
+            weight: 2,
+            opacity: 0.3,
+            lineCap: 'round',
+            lineJoin: 'round',
+            interactive: false
+        }).addTo(this.map);
+        if (typeof this.railSelectionLayer.bringToBack === 'function') {
+            this.railSelectionLayer.bringToBack();
+        }
+    },
+
+    hideRailSelectionOverlay() {
+        if (this.railSelectionLayer && this.map) {
+            this.map.removeLayer(this.railSelectionLayer);
+            this.railSelectionLayer = null;
+        }
+    },
+
+    notifyManualDrawStateChanged() {
+        if (typeof App !== 'undefined' && App && typeof App.updateManualUndoButton === 'function') {
+            App.updateManualUndoButton();
+        }
+    },
+
+    refreshManualDrawRailDataForCurrentView() {
+        if (!this.isDrawingManual || !this.map) return;
+        if (this.manualLoadRefreshRunning) {
+            this.manualLoadRefreshPending = true;
+            return;
+        }
+
+        this.manualLoadRefreshRunning = true;
+        this.loadRailTilesForBounds(this.map.getBounds())
+            .then(() => {
+                if (this.isDrawingManual && this.isMobileViewport()) {
+                    this.showRailSelectionOverlay();
+                }
+            })
+            .finally(() => {
+                this.manualLoadRefreshRunning = false;
+                if (this.manualLoadRefreshPending) {
+                    this.manualLoadRefreshPending = false;
+                    this.refreshManualDrawRailDataForCurrentView();
+                }
+            });
+    },
+
+    startManualDrawRailAutoLoad() {
+        if (!this.map || this.manualLoadOnMoveHandler) return;
+        this.manualLoadOnMoveHandler = () => {
+            this.refreshManualDrawRailDataForCurrentView();
+        };
+        this.map.on('moveend', this.manualLoadOnMoveHandler);
+    },
+
+    stopManualDrawRailAutoLoad() {
+        if (!this.map || !this.manualLoadOnMoveHandler) return;
+        this.map.off('moveend', this.manualLoadOnMoveHandler);
+        this.manualLoadOnMoveHandler = null;
+        this.manualLoadRefreshPending = false;
+        this.manualLoadRefreshRunning = false;
     },
 
     clearTempLine() {
@@ -622,6 +707,7 @@ const MapManager = {
         this.manualPoints = [];
         this.manualAnchors = [];
         this.lastPreviewTs = 0;
+        this.manualHandleMoved = false;
 
         if (this.manualLayer) {
             this.map.removeLayer(this.manualLayer);
@@ -635,10 +721,20 @@ const MapManager = {
             this.map.removeLayer(this.manualHoverMarker);
             this.manualHoverMarker = null;
         }
+        if (this.manualHandleMarker) {
+            this.map.removeLayer(this.manualHandleMarker);
+            this.manualHandleMarker = null;
+        }
         if (this.manualAnchorMarkers && this.manualAnchorMarkers.length > 0) {
             this.manualAnchorMarkers.forEach(m => this.map.removeLayer(m));
             this.manualAnchorMarkers = [];
         }
+
+        const isMobile = this.isMobileViewport();
+        if (isMobile) {
+            this.showRailSelectionOverlay();
+        }
+        this.startManualDrawRailAutoLoad();
 
         // Click handler: commit the currently previewed segment and add a
         // new anchor (filled circle) at the snapped railway node.
@@ -656,25 +752,123 @@ const MapManager = {
                 this.manualAnchors.push(snappedLatLng);
                 this.manualPoints = [snappedLatLng];
 
-                const marker = L.circleMarker(snappedLatLng, {
-                    radius: 5,
-                    color: '#EB0000',
-                    fillColor: '#EB0000',
-                    fillOpacity: 1,
-                    weight: 1
-                }).addTo(this.map);
-                // Clicking an anchor while drawing should finish the route.
-                marker.on('click', (evt) => {
-                    if (evt && evt.originalEvent) {
-                        evt.originalEvent.preventDefault();
-                        evt.originalEvent.stopPropagation();
-                    }
-                    if (this.isDrawingManual && typeof App !== 'undefined' && App && typeof App.toggleManualDraw === 'function') {
-                        App.toggleManualDraw();
-                    }
-                });
-                this.manualAnchorMarkers.push(marker);
+                if (isMobile) {
+                    const handleIcon = L.divIcon({
+                        className: 'manual-handle-icon',
+                        html: '<span></span>',
+                        iconSize: [26, 26],
+                        iconAnchor: [13, 13]
+                    });
+                    this.manualHandleMarker = L.marker(snappedLatLng, {
+                        icon: handleIcon,
+                        draggable: true,
+                        autoPan: true
+                    }).addTo(this.map);
+
+                    this.manualHandleMarker.on('dragstart', () => {
+                        this.manualHandleMoved = false;
+                        if (this.map && this.map.dragging) {
+                            this.map.dragging.disable();
+                        }
+                    });
+
+                    this.manualHandleMarker.on('drag', (evt) => {
+                        if (!this.isDrawingManual || !evt || !evt.latlng) return;
+                        this.manualHandleMoved = true;
+
+                        const snappedDragIdx = this.findNearestRailNode(evt.latlng.lat, evt.latlng.lng);
+                        if (snappedDragIdx === null) return;
+                        const snappedDrag = this.railNodes[snappedDragIdx];
+                        const snappedDragLatLng = L.latLng(snappedDrag.lat, snappedDrag.lon);
+                        this.manualHandleMarker.setLatLng(snappedDragLatLng);
+
+                        const lastAnchor = this.manualAnchors[this.manualAnchors.length - 1];
+                        const segment = this.buildRailPath(lastAnchor.lat, lastAnchor.lng, snappedDrag.lat, snappedDrag.lon);
+                        if (!segment || segment.length < 2) return;
+
+                        const previewLatLngs = segment.map(node => L.latLng(node.lat, node.lon));
+                        if (!this.manualPreviewLayer) {
+                            this.manualPreviewLayer = L.polyline(previewLatLngs, {
+                                color: '#EB0000',
+                                weight: Math.max(1, this.getDynamicWeight() - 1),
+                                opacity: 0.75,
+                                dashArray: '5,8',
+                                lineCap: 'round',
+                                lineJoin: 'round'
+                            }).addTo(this.map);
+                        } else {
+                            this.manualPreviewLayer.setLatLngs(previewLatLngs);
+                        }
+                    });
+
+                    this.manualHandleMarker.on('dragend', (evt) => {
+                        if (!this.isDrawingManual || !evt || !evt.target) return;
+                        if (this.map && this.map.dragging) {
+                            this.map.dragging.enable();
+                        }
+
+                        const endLatLng = evt.target.getLatLng();
+                        const snappedEndIdx = this.findNearestRailNode(endLatLng.lat, endLatLng.lng);
+                        if (snappedEndIdx === null) return;
+                        const snappedEnd = this.railNodes[snappedEndIdx];
+                        const snappedEndLatLng = L.latLng(snappedEnd.lat, snappedEnd.lon);
+                        evt.target.setLatLng(snappedEndLatLng);
+
+                        const lastAnchor = this.manualAnchors[this.manualAnchors.length - 1];
+                        const segment = this.buildRailPath(lastAnchor.lat, lastAnchor.lng, snappedEnd.lat, snappedEnd.lon);
+                        if (!segment || segment.length < 2) return;
+
+                        segment.forEach((node, idx) => {
+                            if (idx === 0 && this.manualPoints.length > 0) return;
+                            this.manualPoints.push(L.latLng(node.lat, node.lon));
+                        });
+
+                        this.manualAnchors.push(snappedEndLatLng);
+                        if (this.manualLayer) {
+                            this.manualLayer.setLatLngs(this.manualPoints);
+                        }
+                        if (this.manualPreviewLayer) {
+                            this.map.removeLayer(this.manualPreviewLayer);
+                            this.manualPreviewLayer = null;
+                        }
+                        this.notifyManualDrawStateChanged();
+                    });
+
+                    this.manualHandleMarker.on('click', (evt) => {
+                        if (evt && evt.originalEvent) {
+                            evt.originalEvent.preventDefault();
+                            evt.originalEvent.stopPropagation();
+                        }
+                        if (!this.manualHandleMoved && this.isDrawingManual && typeof App !== 'undefined' && App && typeof App.toggleManualDraw === 'function') {
+                            App.toggleManualDraw();
+                        }
+                    });
+                } else {
+                    const marker = L.circleMarker(snappedLatLng, {
+                        radius: 5,
+                        color: '#EB0000',
+                        fillColor: '#EB0000',
+                        fillOpacity: 1,
+                        weight: 1
+                    }).addTo(this.map);
+                    // Clicking an anchor while drawing should finish the route.
+                    marker.on('click', (evt) => {
+                        if (evt && evt.originalEvent) {
+                            evt.originalEvent.preventDefault();
+                            evt.originalEvent.stopPropagation();
+                        }
+                        if (this.isDrawingManual && typeof App !== 'undefined' && App && typeof App.toggleManualDraw === 'function') {
+                            App.toggleManualDraw();
+                        }
+                    });
+                    this.manualAnchorMarkers.push(marker);
+                }
+                this.notifyManualDrawStateChanged();
             } else {
+                // On mobile, after selecting the first segment users extend by dragging the handle.
+                if (isMobile) {
+                    return;
+                }
                 const lastAnchor = this.manualAnchors[this.manualAnchors.length - 1];
                 const segment = this.buildRailPath(lastAnchor.lat, lastAnchor.lng, snapped.lat, snapped.lon);
                 if (!segment || segment.length < 2) {
@@ -710,6 +904,7 @@ const MapManager = {
                     }
                 });
                 this.manualAnchorMarkers.push(marker);
+                this.notifyManualDrawStateChanged();
             }
 
             if (!this.manualLayer) {
@@ -787,7 +982,9 @@ const MapManager = {
         };
 
         this.map.on('click', this.manualClickHandler);
-        this.map.on('mousemove', this.manualMoveHandler);
+        if (!isMobile) {
+            this.map.on('mousemove', this.manualMoveHandler);
+        }
 
         // Make double-click less surprising while drawing
         if (this.map.doubleClickZoom && this.map.doubleClickZoom.enabled()) {
@@ -820,6 +1017,91 @@ const MapManager = {
         return this.manualPoints.map((pt) => [pt.lng, pt.lat]);
     },
 
+    getManualAnchorCount() {
+        if (!this.manualAnchors || !Array.isArray(this.manualAnchors)) {
+            return 0;
+        }
+        return this.manualAnchors.length;
+    },
+
+    rebuildManualPointsFromAnchors() {
+        if (!this.manualAnchors || this.manualAnchors.length === 0) {
+            this.manualPoints = [];
+            return;
+        }
+
+        const rebuilt = [this.manualAnchors[0]];
+        for (let i = 1; i < this.manualAnchors.length; i++) {
+            const prev = this.manualAnchors[i - 1];
+            const curr = this.manualAnchors[i];
+            const segment = this.buildRailPath(prev.lat, prev.lng, curr.lat, curr.lng);
+            if (!segment || segment.length < 2) {
+                rebuilt.push(curr);
+                continue;
+            }
+            segment.forEach((node, idx) => {
+                if (idx === 0 && rebuilt.length > 0) return;
+                rebuilt.push(L.latLng(node.lat, node.lon));
+            });
+        }
+        this.manualPoints = rebuilt;
+    },
+
+    undoManualDrawStep() {
+        if (!this.isDrawingManual || !this.map) return false;
+        if (!this.manualAnchors || this.manualAnchors.length === 0) return false;
+
+        if (this.manualPreviewLayer) {
+            this.map.removeLayer(this.manualPreviewLayer);
+            this.manualPreviewLayer = null;
+        }
+
+        // Undo from single anchor means resetting the current seed.
+        if (this.manualAnchors.length === 1) {
+            this.manualAnchors = [];
+            this.manualPoints = [];
+
+            if (this.manualLayer) {
+                this.map.removeLayer(this.manualLayer);
+                this.manualLayer = null;
+            }
+            if (this.manualHandleMarker) {
+                this.map.removeLayer(this.manualHandleMarker);
+                this.manualHandleMarker = null;
+            }
+            if (this.manualAnchorMarkers && this.manualAnchorMarkers.length > 0) {
+                this.manualAnchorMarkers.forEach(m => this.map.removeLayer(m));
+                this.manualAnchorMarkers = [];
+            }
+            this.notifyManualDrawStateChanged();
+            return true;
+        }
+
+        this.manualAnchors.pop();
+        this.rebuildManualPointsFromAnchors();
+
+        if (this.manualLayer) {
+            this.manualLayer.setLatLngs(this.manualPoints);
+        }
+
+        if (this.manualHandleMarker) {
+            const lastAnchor = this.manualAnchors[this.manualAnchors.length - 1];
+            if (lastAnchor) {
+                this.manualHandleMarker.setLatLng(lastAnchor);
+            }
+        }
+
+        if (this.manualAnchorMarkers && this.manualAnchorMarkers.length > this.manualAnchors.length) {
+            const removed = this.manualAnchorMarkers.pop();
+            if (removed) {
+                this.map.removeLayer(removed);
+            }
+        }
+
+        this.notifyManualDrawStateChanged();
+        return true;
+    },
+
     /**
      * Cancel manual drawing mode and clear any temporary polyline from the map.
      */
@@ -847,14 +1129,21 @@ const MapManager = {
             this.map.removeLayer(this.manualHoverMarker);
             this.manualHoverMarker = null;
         }
+        if (this.manualHandleMarker) {
+            this.map.removeLayer(this.manualHandleMarker);
+            this.manualHandleMarker = null;
+        }
         if (this.manualAnchorMarkers && this.manualAnchorMarkers.length > 0) {
             this.manualAnchorMarkers.forEach(m => this.map.removeLayer(m));
             this.manualAnchorMarkers = [];
         }
+        this.hideRailSelectionOverlay();
+        this.stopManualDrawRailAutoLoad();
 
         this.manualPoints = [];
         this.manualAnchors = [];
         this.isDrawingManual = false;
+        this.manualHandleMoved = false;
 
         if (this.map.doubleClickZoom && !this.map.doubleClickZoom.enabled()) {
             this.map.doubleClickZoom.enable();

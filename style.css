@@ -391,6 +391,25 @@ input[type="text"]:focus {
     line-height: 1.4;
 }
 
+.draw-actions {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+#btn-draw-route,
+#btn-undo-draw {
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#btn-undo-draw {
+    flex-shrink: 0;
+    padding: 0 12px;
+}
+
 /* Section Headers */
 .section-header {
     padding: 20px 24px 12px;
@@ -663,6 +682,22 @@ body.eraser-mode #map {
 
 .hidden {
     display: none !important;
+}
+
+.manual-handle-icon {
+    width: 26px;
+    height: 26px;
+}
+
+.manual-handle-icon span {
+    display: block;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    border: 2px solid #EB0000;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    touch-action: none;
 }
 
 /* Scrollbar styling */

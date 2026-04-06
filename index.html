@@ -72,9 +72,14 @@
                 </div>
 
                 <h3 class="hidden">International routes</h3>
-                <button id="btn-draw-route" class="btn btn-outline w-full mt-8">
-                    Draw new route
-                </button>
+                <div class="draw-actions mt-8">
+                    <button id="btn-draw-route" class="btn btn-outline w-full">
+                        Draw new route
+                    </button>
+                    <button id="btn-undo-draw" class="btn btn-outline btn-small hidden" type="button" title="Undo last drawing step">
+                        Back
+                    </button>
+                </div>
                 <p id="draw-hint" class="hidden">
                     Click along the railway line on the map to trace your journey. Click
                     <strong>Finish drawing</strong> to save, or press <strong>Esc</strong> to cancel.
